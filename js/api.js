@@ -127,6 +127,21 @@
     calcControllingPrognose: (standortId, anfrage) => callPost('os_controlling_prognose_calc', {
       standortId: standortId,
       anfrage: anfrage || {}
+    }),
+    getEinkaufOverview: (standortId, forceRefresh) => callPost('os_einkauf_overview', {
+      standortId: standortId,
+      forceRefresh: !!forceRefresh
+    }),
+    markEinkaufArticleReviewed: (standortId, artId) => callPost('os_einkauf_mark_reviewed', {
+      standortId: standortId,
+      artId: artId
+    }),
+    confirmEinkaufNewArticle: (standortId, artId) => callPost('os_einkauf_confirm_article', {
+      standortId: standortId,
+      artId: artId
+    }),
+    confirmAllEinkaufNewArticles: (standortId) => callPost('os_einkauf_confirm_all', {
+      standortId: standortId
     })
   };
 })();

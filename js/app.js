@@ -65,6 +65,7 @@
     STATE.pinBuffer = '';
     if (window.SonaBestandModule) window.SonaBestandModule.clearCache();
     if (window.SonaControllingModule) window.SonaControllingModule.clearCache();
+    if (window.SonaEinkaufModule) window.SonaEinkaufModule.clearCache();
     updatePinDots();
     $('osAppShell').classList.add('hidden');
     $('osNavList').innerHTML = '';
@@ -218,6 +219,8 @@
           window.SonaBestandModule.mount(s, mod);
         } else if (mod.key === 'controlling' && window.SonaControllingModule) {
           window.SonaControllingModule.mount(s, mod);
+        } else if (mod.key === 'einkauf' && window.SonaEinkaufModule) {
+          window.SonaEinkaufModule.mount(s, mod);
         } else {
           renderModuleBridgeView(mod);
         }
@@ -257,7 +260,7 @@
       '<div class="card">' +
         '<div class="card-head">' +
           '<div>' +
-            '<div class="kicker">Phase 3 · Bestand &amp; Controlling nativ aktiv</div>' +
+            '<div class="kicker">Phase 4 · Bestand, Controlling &amp; Einkauf nativ aktiv</div>' +
             '<h3>Willkommen im zentralen SONA OS, ' + esc(s.user.name) + '</h3>' +
           '</div>' +
           '<div style="display:flex;gap:8px;flex-wrap:wrap;">' +
