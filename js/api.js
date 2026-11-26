@@ -214,6 +214,10 @@
       standortId: standortId,
       entry: entry || {}
     }),
+    getOpsMonthlySummary: (standortId, forceRefresh) => callPost('os_ops_monthly_summary', {
+      standortId: standortId,
+      forceRefresh: !!forceRefresh
+    }),
     getModuleLaunchUrl: (moduleKey, standortId) => callPost('os_module_launch', {
       moduleKey: moduleKey,
       standortId: standortId

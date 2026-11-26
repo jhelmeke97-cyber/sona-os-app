@@ -56,71 +56,83 @@
     return false;
   }
 
-  async function loadSchwundOverview(session) {
+  async function loadMonthlySummary(session, forceRefresh) {
     const slot = document.getElementById('opsSchwundKpiSlot');
     if (!slot) return;
-    slot.innerHTML = '<div class="card"><div class="kicker">Schwund-Übersicht</div><p class="module-desc">Lade aktuelle Perioden-Kennzahlen und Schwund-Positionen …</p></div>';
+    slot.innerHTML =
+      '<div class="card">' +
+        '<div class="kicker">Monats-Übersicht · ' + esc(session.standortName) + '</div>' +
+        '<p class="module-desc">Lade Monatsschwund &amp; Monatsbruch …</p>' +
+      '</div>';
 
     try {
-      const res = await window.SonaApi.getBestandDashboard(session.standortId, { mode: 'SINGLE_MONTH' }, false);
+      const res = await window.SonaApi.getOpsMonthlySummary(session.standortId, !!forceRefresh);
       const currentSlot = document.getElementById('opsSchwundKpiSlot');
       if (!currentSlot) return;
 
       if (!res || res.success === false) {
         currentSlot.innerHTML =
           '<div class="card">' +
-            '<div class="kicker">Schwund-Kennzahlen</div>' +
-            '<h3>Aktuelle Periode konnte nicht geladen werden</h3>' +
+            '<div class="kicker">Monats-Übersicht</div>' +
+            '<h3>Zahlen konnten nicht geladen werden</h3>' +
             '<p class="module-desc">' + esc((res && res.error) || 'Unbekannter Fehler.') + '</p>' +
           '</div>';
         return;
       }
 
-      const cur = res.currentTotals || {};
-      const periodId = (res.selection && res.selection.currentPeriodIds && res.selection.currentPeriodIds[0]) || '';
-      const periodObj = (Array.isArray(res.periods) ? res.periods : []).find(function(p) { return p.period_id === periodId; });
-      const periodLabel = (periodObj && periodObj.label) || periodId || 'Aktuelle Periode';
+      if (res.status === 'IN_VORBEREITUNG') {
+        currentSlot.innerHTML =
+          '<div class="card">' +
+            '<div class="kicker">Monats-Übersicht · ' + esc(session.standortName) + '</div>' +
+            '<h3>Noch nicht für diesen Standort verknüpft</h3>' +
+            '<p class="module-desc">' + esc(res.message || 'Für diesen Standort sind noch keine Schwund- und Bruch-Tabellen hinterlegt.') + '</p>' +
+          '</div>';
+        return;
+      }
 
-      const lossItems = (Array.isArray(res.matrixItems) ? res.matrixItems : [])
-        .filter(function(it) { return (Number(it.net_value_documented_loss) || 0) > 0 || (Number(it.quantity_documented_loss) || 0) > 0; })
-        .slice()
-        .sort(function(a, b) { return (Number(b.net_value_documented_loss) || 0) - (Number(a.net_value_documented_loss) || 0); });
-
-      const rows = lossItems.slice(0, 12).map(function(it) {
-        return '<tr>' +
-          '<td><b>' + esc(it.master_ingredient_name || it.master_ingredient_id) + '</b><div style="font-size:10.5px;color:var(--os-silk);">' + esc(it.category || '–') + '</div></td>' +
-          '<td class="tabular">' + fmtNum(it.quantity_documented_loss, 2) + ' ' + esc(it.reference_unit || '') + '</td>' +
-          '<td class="tabular">' + fmtEur(it.net_value_documented_loss) + '</td>' +
-        '</tr>';
-      }).join('');
+      const monthLabel = res.monthLabel || 'Aktueller Monat';
+      const schwund = res.schwund || { totalEur: 0, count: 0 };
+      const bruch = res.bruch || { totalEur: 0, pieces: 0, count: 0 };
 
       currentSlot.innerHTML =
         '<div class="card">' +
           '<div class="card-head">' +
             '<div>' +
-              '<div class="kicker">Schwund-Übersicht · ' + esc(periodLabel) + '</div>' +
-              '<h3>Schwund-Kennzahlen &amp; Top-Positionen</h3>' +
+              '<div class="kicker">Operations · ' + esc(monthLabel) + '</div>' +
+              '<h3>Monatsschwund &amp; Monatsbruch</h3>' +
             '</div>' +
-            '<span class="badge">' + esc(session.standortName) + '</span>' +
+            '<div style="display:flex;gap:8px;align-items:center;">' +
+              '<span class="badge">' + esc(session.standortName) + '</span>' +
+              '<button type="button" id="btnReloadOpsSummary" class="btn btn-sm">Aktualisieren</button>' +
+            '</div>' +
           '</div>' +
-          '<div class="grid-3" style="margin-bottom:14px;">' +
-            '<div class="bv-kpi-card"><div class="kicker">Dok. Schwund (Periode)</div><div class="bv-kpi-val tabular">' + fmtEur(cur.net_value_documented_loss) + '</div></div>' +
-            '<div class="bv-kpi-card"><div class="kicker">Betroffene Positionen</div><div class="bv-kpi-val tabular">' + esc(lossItems.length) + '</div></div>' +
-            '<div class="bv-kpi-card"><div class="kicker">Kassen-Warenverbrauch</div><div class="bv-kpi-val tabular">' + fmtEur(cur.net_value_consumed_sales) + '</div></div>' +
+          '<div class="grid-2">' +
+            '<div class="bv-kpi-card">' +
+              '<div class="kicker">Monatsschwund (' + esc(monthLabel) + ')</div>' +
+              '<div class="bv-kpi-val tabular">' + fmtEur(schwund.totalEur) + '</div>' +
+              '<div style="margin-top:6px;font-size:12px;color:var(--os-silk);">' + esc(schwund.count || 0) + ' Einträge</div>' +
+            '</div>' +
+            '<div class="bv-kpi-card">' +
+              '<div class="kicker">Monatsbruch (' + esc(monthLabel) + ')</div>' +
+              '<div class="bv-kpi-val tabular">' + fmtEur(bruch.totalEur) + '</div>' +
+              '<div style="margin-top:6px;font-size:12px;color:var(--os-silk);">' + fmtNum(bruch.pieces || 0, 0) + ' Stück · ' + esc(bruch.count || 0) + ' Einträge</div>' +
+            '</div>' +
           '</div>' +
-          '<div class="table-wrap"><table><thead><tr>' +
-            '<th>Position / Zutat</th><th>Schwund-Menge</th><th>Warenwert (Netto)</th>' +
-          '</tr></thead><tbody>' +
-            (rows || '<tr><td colspan="3">Keine dokumentierten Schwund-Positionen in dieser Periode.</td></tr>') +
-          '</tbody></table></div>' +
         '</div>';
+
+      const reloadBtn = document.getElementById('btnReloadOpsSummary');
+      if (reloadBtn) {
+        reloadBtn.addEventListener('click', function() {
+          loadMonthlySummary(session, true);
+        });
+      }
     } catch (err) {
       const currentSlot = document.getElementById('opsSchwundKpiSlot');
       if (!currentSlot) return;
       currentSlot.innerHTML =
         '<div class="card">' +
-          '<div class="kicker">Schwund-Kennzahlen</div>' +
-          '<p class="module-desc">Fehler beim Laden der Schwund-Übersicht: ' + esc(err && err.message ? err.message : String(err)) + '</p>' +
+          '<div class="kicker">Monats-Übersicht</div>' +
+          '<p class="module-desc">Fehler beim Laden: ' + esc(err && err.message ? err.message : String(err)) + '</p>' +
         '</div>';
     }
   }
@@ -428,12 +440,11 @@
       const canBruchInput = (opTabs === 'ALL') || (Array.isArray(opTabs) && opTabs.indexOf('bruch_eingabe') !== -1);
       const canSchwundStats = (opTabs === 'ALL' && (accessLevel === 'WRITE' || accessLevel === 'ADMIN' || !!perms.adminMatrix))
         || (Array.isArray(opTabs) && opTabs.indexOf('schwund_auswertung') !== -1);
-      const hasBestandAccess = !!(perms.modules && perms.modules.bestand);
 
       const tabs = [];
       if (canReklamation) tabs.push({ id: 'reklamation', label: 'Gäste-Reklamation' });
       if (canSchwundInput || canBruchInput) tabs.push({ id: 'inputs', label: 'Schwund & Bruch' });
-      if (canSchwundStats) tabs.push({ id: 'stats', label: 'Schwund-Auswertung' });
+      if (canSchwundStats) tabs.push({ id: 'stats', label: 'Monats-Übersicht' });
 
       if (!tabs.some(function(t) { return t.id === OPS_STATE.activeTab; })) {
         OPS_STATE.activeTab = tabs.length ? tabs[0].id : '';
@@ -499,17 +510,8 @@
         }
 
         if (OPS_STATE.activeTab === 'stats') {
-          if (hasBestandAccess) {
-            pane.innerHTML = '<div id="opsSchwundKpiSlot"></div>';
-            loadSchwundOverview(session);
-          } else {
-            pane.innerHTML =
-              '<div class="card">' +
-                '<div class="kicker">Schwund-Kennzahlen</div>' +
-                '<h3>Bestand-Leserecht erforderlich</h3>' +
-                '<p class="module-desc">Aktiviere für diesen Benutzer in der Rechte-Matrix zusätzlich das Modul <b>Bestand</b>, damit die Live-Periodenzahlen und Top-Positionen hier direkt angezeigt werden.</p>' +
-              '</div>';
-          }
+          pane.innerHTML = '<div id="opsSchwundKpiSlot"></div>';
+          loadMonthlySummary(session, false);
           return;
         }
 
