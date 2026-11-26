@@ -64,6 +64,7 @@
     STATE.rbacEntries = [];
     STATE.pinBuffer = '';
     if (window.SonaBestandModule) window.SonaBestandModule.clearCache();
+    if (window.SonaControllingModule) window.SonaControllingModule.clearCache();
     updatePinDots();
     $('osAppShell').classList.add('hidden');
     $('osNavList').innerHTML = '';
@@ -215,6 +216,8 @@
         $('activeViewTitle').textContent = mod.title;
         if (mod.key === 'bestand' && window.SonaBestandModule) {
           window.SonaBestandModule.mount(s, mod);
+        } else if (mod.key === 'controlling' && window.SonaControllingModule) {
+          window.SonaControllingModule.mount(s, mod);
         } else {
           renderModuleBridgeView(mod);
         }
@@ -254,7 +257,7 @@
       '<div class="card">' +
         '<div class="card-head">' +
           '<div>' +
-            '<div class="kicker">Phase 2 · Bestand &amp; Warenverbrauch nativ aktiv</div>' +
+            '<div class="kicker">Phase 3 · Bestand &amp; Controlling nativ aktiv</div>' +
             '<h3>Willkommen im zentralen SONA OS, ' + esc(s.user.name) + '</h3>' +
           '</div>' +
           '<div style="display:flex;gap:8px;flex-wrap:wrap;">' +

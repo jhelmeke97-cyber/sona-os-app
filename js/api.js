@@ -108,6 +108,25 @@
       standortId: standortId,
       exportType: exportType || 'MATRIX',
       filter: filter || {}
+    }),
+    getControllingMeta: (standortId, forceRefresh) => callPost('os_controlling_meta', {
+      standortId: standortId,
+      forceRefresh: !!forceRefresh
+    }),
+    getControllingAnalyse: (standortId, filter, forceRefresh) => callPost('os_controlling_analyse', {
+      standortId: standortId,
+      filter: filter || {},
+      forceRefresh: !!forceRefresh
+    }),
+    refreshControlling: (standortId) => callPost('os_controlling_refresh', {
+      standortId: standortId
+    }),
+    getControllingPrognoseMeta: (standortId) => callPost('os_controlling_prognose_meta', {
+      standortId: standortId
+    }),
+    calcControllingPrognose: (standortId, anfrage) => callPost('os_controlling_prognose_calc', {
+      standortId: standortId,
+      anfrage: anfrage || {}
     })
   };
 })();
