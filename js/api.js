@@ -170,6 +170,10 @@
     }),
     syncRezepturMasters: (standortId) => callPost('os_rezeptur_sync_masters', {
       standortId: standortId
+    }),
+    getModuleLaunchUrl: (moduleKey, standortId) => callPost('os_module_launch', {
+      moduleKey: moduleKey,
+      standortId: standortId
     })
   };
 })();

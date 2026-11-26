@@ -160,11 +160,11 @@
 
     const mods = s.ecosystemModules || [];
     const navItems = [
-      { key: 'overview', title: 'Startseite', ebene: 'SONA OS', pillar: 'ROOT' }
-    ].concat(mods.map(m => ({ key: 'mod_' + m.key, title: m.title, ebene: m.ebene, pillar: m.pillar || 'WARENWIRTSCHAFT' })));
+      { key: 'overview', title: 'Startseite', pillar: 'ROOT' }
+    ].concat(mods.map(m => ({ key: 'mod_' + m.key, title: m.title, pillar: m.pillar || 'WARENWIRTSCHAFT' })));
 
     if (s.permissions.adminMatrix) {
-      navItems.push({ key: 'rbac', title: 'Rechte-Matrix', ebene: 'Admin', pillar: 'ADMIN' });
+      navItems.push({ key: 'rbac', title: 'Rechte-Matrix', pillar: 'ADMIN' });
     }
 
     if (!navItems.some(x => x.key === STATE.activeView)) {
@@ -173,9 +173,9 @@
 
     const pillarOrder = [
       { id: 'ROOT', label: '' },
-      { id: 'WARENWIRTSCHAFT', label: '01 · Warenwirtschaft' },
-      { id: 'CONTROLLING', label: '02 · Controlling' },
-      { id: 'OPERATIONS', label: '03 · Operations' },
+      { id: 'WARENWIRTSCHAFT', label: 'Warenwirtschaft' },
+      { id: 'CONTROLLING', label: 'Controlling' },
+      { id: 'OPERATIONS', label: 'Operations' },
       { id: 'ADMIN', label: 'Administration' }
     ];
 
@@ -186,7 +186,6 @@
       return heading + items.map(item =>
         '<button type="button" class="os-nav-btn' + (STATE.activeView === item.key ? ' active' : '') + '" data-view="' + esc(item.key) + '">' +
           '<span>' + esc(item.title) + '</span>' +
-          '<span class="os-nav-ebene">' + esc(item.ebene) + '</span>' +
         '</button>'
       ).join('');
     }).join('');
@@ -219,17 +218,20 @@
     const s = STATE.session;
     if (!s) return;
 
+    const mainEl = $('osMainContent');
+    if (mainEl) mainEl.classList.remove('os-content-fullbleed');
+
     document.querySelectorAll('#osNavList .os-nav-btn, #osMobileNav button').forEach(btn => {
       btn.classList.toggle('active', btn.dataset.view === STATE.activeView);
     });
 
     if (STATE.activeView === 'overview') {
-      $('activeViewTitle').textContent = 'SONA OS – Übersicht';
+      $('activeViewTitle').textContent = 'Startseite';
       renderOverview();
       return;
     }
     if (STATE.activeView === 'rbac' && s.permissions.adminMatrix) {
-      $('activeViewTitle').textContent = 'Zentrale Rechte-Matrix';
+      $('activeViewTitle').textContent = 'Rechte-Matrix';
       renderRbacMatrixView();
       return;
     }
@@ -238,18 +240,10 @@
       const mod = (s.ecosystemModules || []).find(m => m.key === modKey);
       if (mod) {
         $('activeViewTitle').textContent = mod.title;
-        if (mod.key === 'bestand' && window.SonaBestandModule) {
-          window.SonaBestandModule.mount(s, mod);
-        } else if (mod.key === 'controlling' && window.SonaControllingModule) {
-          window.SonaControllingModule.mount(s, mod);
-        } else if (mod.key === 'einkauf' && window.SonaEinkaufModule) {
-          window.SonaEinkaufModule.mount(s, mod);
-        } else if (mod.key === 'rezeptur' && window.SonaRezepturModule) {
-          window.SonaRezepturModule.mount(s, mod);
-        } else if (mod.key === 'operations' && window.SonaOperationsModule) {
+        if (mod.key === 'operations' && window.SonaOperationsModule) {
           window.SonaOperationsModule.mount(s, mod);
         } else {
-          renderModuleBridgeView(mod);
+          renderEmbeddedModuleView(mod);
         }
         return;
       }
@@ -259,96 +253,84 @@
     renderOverview();
   }
 
+  async function renderEmbeddedModuleView(mod) {
+    const s = STATE.session;
+    const container = $('osMainContent');
+    if (!container || !s) return;
+
+    container.classList.add('os-content-fullbleed');
+    container.innerHTML = '';
+    window.SonaLoader.show(350);
+
+    try {
+      const res = await window.SonaApi.getModuleLaunchUrl(mod.key, s.standortId);
+      if (!res || !res.success || !res.launchUrl) {
+        container.classList.remove('os-content-fullbleed');
+        container.innerHTML =
+          '<div class="card">' +
+            '<h3>' + esc(mod.title) + ' konnte nicht gestartet werden</h3>' +
+            '<p class="module-desc">' + esc((res && res.error) || 'Zugriff verweigert oder Verbindungsfehler.') + '</p>' +
+          '</div>';
+        window.SonaLoader.hide();
+        return;
+      }
+
+      const iframe = document.createElement('iframe');
+      iframe.className = 'os-module-frame';
+      iframe.title = mod.title;
+      iframe.setAttribute('allow', 'clipboard-read; clipboard-write; fullscreen');
+      iframe.addEventListener('load', () => window.SonaLoader.hide());
+      iframe.src = res.launchUrl;
+      container.innerHTML = '';
+      container.appendChild(iframe);
+      setTimeout(() => window.SonaLoader.hide(), 8000);
+    } catch (err) {
+      container.classList.remove('os-content-fullbleed');
+      container.innerHTML =
+        '<div class="card">' +
+          '<h3>Verbindungsfehler</h3>' +
+          '<p class="module-desc">' + esc(err && err.message ? err.message : String(err)) + '</p>' +
+        '</div>';
+      window.SonaLoader.hide();
+    }
+  }
+
   function renderOverview() {
     const s = STATE.session;
     const mods = s.ecosystemModules || [];
     const container = $('osMainContent');
 
-    const renderCard = m =>
-      '<div class="module-card">' +
-        '<div>' +
-          '<div class="kicker">' + esc(m.ebene) + '</div>' +
-          '<h3>' + esc(m.title) + '</h3>' +
-          '<p class="module-desc">' + esc(m.subtitle) + '</p>' +
+    const renderTile = m =>
+      '<button type="button" class="home-tile" onclick="window.SonaApp.openView(\'mod_' + esc(m.key) + '\')">' +
+        '<div class="home-tile-head">' +
+          '<h4 class="home-tile-title">' + esc(m.title) + '</h4>' +
+          '<span class="home-tile-arrow">→</span>' +
         '</div>' +
-        '<div>' +
-          '<div style="margin-bottom:10px;"><span class="badge ' + (m.nativeReady ? 'badge-ok' : 'badge-info') + '">' + esc(m.phase) + '</span></div>' +
-          '<div style="display:flex;gap:8px;flex-wrap:wrap;">' +
-            '<button type="button" class="btn btn-primary btn-sm" onclick="window.SonaApp.openView(\'mod_' + esc(m.key) + '\')">' + (m.nativeReady ? 'Öffnen' : 'Modul-Bereich') + '</button>' +
-            (m.legacyUrl && (!m.adminOnlyLegacy || s.permissions.adminMatrix)
-              ? '<a class="btn btn-sm" href="' + esc(m.legacyUrl) + '" target="_blank" rel="noopener">' + (m.adminOnlyLegacy ? 'Admin-Vollansicht ↗' : 'Live-Ebene ↗') + '</a>'
-              : '') +
-          '</div>' +
-        '</div>' +
-      '</div>';
+        '<p class="home-tile-desc">' + esc(m.subtitle) + '</p>' +
+      '</button>';
 
     const pillars = [
-      { id: 'WARENWIRTSCHAFT', kicker: 'Oberebene 01 · Vernetzte Warenwirtschaft', title: 'Warenwirtschaft', desc: 'Einkauf, Bestand & Warenverbrauch sowie Rezeptur-Manager – voll synchronisiert.' },
-      { id: 'CONTROLLING', kicker: 'Oberebene 02 · Steuerung & Analyse', title: 'Controlling', desc: 'Periodenvergleich, Deckungsbeiträge, Renner-Penner & Preis-Prognose.' },
-      { id: 'OPERATIONS', kicker: 'Oberebene 03 · Operativer Tagesbetrieb', title: 'Operations', desc: 'Schwund & Bruch (aktiv vernetzt) · Reklamationen, Bewertungen & Checklisten vorbereitet.' }
+      { id: 'WARENWIRTSCHAFT', title: 'Warenwirtschaft' },
+      { id: 'CONTROLLING', title: 'Controlling' },
+      { id: 'OPERATIONS', title: 'Operations' }
     ];
 
     const pillarsHtml = pillars.map(p => {
       const pMods = mods.filter(m => (m.pillar || 'WARENWIRTSCHAFT') === p.id);
       if (!pMods.length) return '';
-      const gridCls = pMods.length >= 3 ? 'grid-3' : (pMods.length === 2 ? 'grid-2' : 'grid-2');
+      const gridCls = pMods.length >= 3 ? 'grid-3' : 'grid-2';
       return '<section class="pillar-section">' +
-        '<div class="pillar-head">' +
-          '<div><div class="kicker">' + esc(p.kicker) + '</div><h3>' + esc(p.title) + '</h3></div>' +
-          '<span class="kicker">' + esc(p.desc) + '</span>' +
-        '</div>' +
-        '<div class="' + gridCls + '">' + pMods.map(renderCard).join('') + '</div>' +
+        '<div class="pillar-head"><h3>' + esc(p.title) + '</h3></div>' +
+        '<div class="' + gridCls + '">' + pMods.map(renderTile).join('') + '</div>' +
       '</section>';
     }).join('');
 
     container.innerHTML =
-      '<div class="card">' +
-        '<div class="card-head">' +
-          '<div>' +
-            '<div class="kicker">SONA OS · 3-Säulen-Architektur (Multi-Standort bereit)</div>' +
-            '<h3>Willkommen im zentralen SONA OS, ' + esc(s.user.name) + '</h3>' +
-          '</div>' +
-          '<div style="display:flex;gap:8px;flex-wrap:wrap;">' +
-            '<span class="badge badge-ok">Single Sign-On aktiv</span>' +
-            '<span class="badge">Standort: ' + esc(s.standortName) + ' (' + esc(s.standortId) + ')</span>' +
-          '</div>' +
-        '</div>' +
-        '<p class="module-desc">Alle Ebenen sind sauber in <b>Warenwirtschaft</b>, <b>Controlling</b> und <b>Operations</b> gegliedert und arbeiten auf derselben synchronisierten Google-Sheets-Datenbasis. Standortwechsel und Rechte greifen sofort über alle Module hinweg.</p>' +
+      '<div class="os-home-greeting">' +
+        '<h2>Willkommen, ' + esc(s.user.name) + '</h2>' +
+        '<span class="badge">' + esc(s.standortName) + ' (' + esc(s.standortId) + ')</span>' +
       '</div>' +
-      (pillarsHtml || '<div class="card"><p>Für deinen Benutzer sind aktuell noch keine Ebenen freigegeben.</p></div>') +
-      '<div class="grid-2">' +
-        '<div class="card">' +
-          '<div class="card-head"><div><div class="kicker">Sicherheit</div><h3>Session &amp; Mandantenschutz</h3></div></div>' +
-          '<p class="module-desc" style="margin-bottom:8px;"><b>Benutzer:</b> ' + esc(s.user.name) + ' (' + esc(s.user.id) + ')</p>' +
-          '<p class="module-desc" style="margin-bottom:8px;"><b>Rolle / Berechtigungsquelle:</b> ' + esc(s.user.role) + ' · ' + esc(s.permissions.source) + '</p>' +
-          '<p class="module-desc" style="margin-bottom:8px;"><b>Erlaubte Standorte:</b> ' + esc((s.permissions.allowedLocations || []).join(', ')) + '</p>' +
-          '<p class="module-desc"><b>Session gültig bis:</b> <span class="tabular">' + esc(s.expiresAt) + '</span></p>' +
-        '</div>' +
-        '<div class="card">' +
-          '<div class="card-head">' +
-            '<div><div class="kicker">Verbindung</div><h3>SONA OS Gateway Status</h3></div>' +
-            '<button type="button" class="btn btn-sm" id="btnCheckGateway">Ping testen</button>' +
-          '</div>' +
-          '<p class="module-desc" id="gatewayHealthText">Verbunden mit Apps-Script JSON-Gateway (' + esc(window.SONA_OS_DEFAULTS.VERSION) + ').</p>' +
-        '</div>' +
-      '</div>';
-
-    const btnPing = $('btnCheckGateway');
-    if (btnPing) {
-      btnPing.addEventListener('click', async () => {
-        btnPing.disabled = true;
-        try {
-          const p = await window.SonaApi.ping();
-          $('gatewayHealthText').textContent = p && p.success
-            ? 'Gateway erreichbar (' + p.version + ' · Serverzeit ' + p.time + ')'
-            : 'Antwort unerwartet.';
-        } catch (err) {
-          $('gatewayHealthText').textContent = 'Fehler: ' + err.message;
-        } finally {
-          btnPing.disabled = false;
-        }
-      });
-    }
+      (pillarsHtml || '<div class="card"><p>Für deinen Benutzer sind aktuell noch keine Bereiche freigegeben.</p></div>');
   }
 
   function renderModuleBridgeView(mod) {

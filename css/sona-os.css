@@ -858,3 +858,104 @@ tr.clickable-row:hover td {
   font-weight: 600;
   color: var(--os-cream);
 }
+
+/* ============================================================================
+   Minimalist Startseite Cards & Full-Bleed 1:1 Embedded Module Frame
+   ============================================================================ */
+.os-home-greeting {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 24px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--os-line);
+}
+
+.os-home-greeting h2 {
+  margin: 0;
+  font-family: var(--font-serif);
+  font-size: 28px;
+  font-weight: 500;
+  color: var(--os-cream);
+}
+
+.home-tile {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  text-align: left;
+  width: 100%;
+  background: var(--os-card);
+  border: 1px solid var(--os-line);
+  border-radius: var(--os-radius);
+  padding: 20px 22px;
+  cursor: pointer;
+  transition: border-color 0.16s ease, transform 0.16s ease, background 0.16s ease;
+  color: inherit;
+  font-family: var(--font-sans);
+}
+
+.home-tile:hover {
+  border-color: var(--os-line-strong);
+  background: #1B1B1B;
+  transform: translateY(-1px);
+}
+
+.home-tile-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.home-tile-title {
+  font-family: var(--font-serif);
+  font-size: 21px;
+  font-weight: 600;
+  color: var(--os-cream);
+  margin: 0;
+}
+
+.home-tile-arrow {
+  color: var(--os-silk);
+  font-size: 16px;
+  transition: transform 0.15s ease, color 0.15s ease;
+}
+
+.home-tile:hover .home-tile-arrow {
+  transform: translateX(3px);
+  color: var(--os-cream);
+}
+
+.home-tile-desc {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--os-silk);
+}
+
+.os-content-fullbleed {
+  padding: 0 !important;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 61px);
+}
+
+.os-module-frame {
+  width: 100%;
+  height: 100%;
+  flex: 1 1 auto;
+  border: none;
+  background: #000000;
+  display: block;
+}
+
+@media (max-width: 860px) {
+  .os-content-fullbleed {
+    height: calc(100vh - 112px);
+  }
+}
