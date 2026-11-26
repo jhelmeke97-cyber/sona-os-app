@@ -391,10 +391,27 @@
 
     const locSelect = $('globalLocationSelect');
     const allowedLocs = s.locations || [{ id: s.standortId, name: s.standortName }];
-    locSelect.innerHTML = allowedLocs.map(l =>
-      '<option value="' + esc(l.id) + '"' + (l.id === s.standortId ? ' selected' : '') + '>' + esc(shortLocName(l.name)) + '</option>'
-    ).join('');
-    locSelect.disabled = allowedLocs.length <= 1;
+    if (locSelect) {
+      locSelect.innerHTML = allowedLocs.map(l =>
+        '<option value="' + esc(l.id) + '"' + (l.id === s.standortId ? ' selected' : '') + '>' + esc(shortLocName(l.name)) + '</option>'
+      ).join('');
+      locSelect.disabled = allowedLocs.length <= 1;
+    }
+
+    const brandLocName = $('sidebarBrandLocName');
+    const brandLocCaret = $('sidebarBrandLocCaret');
+    const locMenu = $('locationSwitcherMenu');
+    if (brandLocName) brandLocName.textContent = shortLocName(s.standortName);
+    if (brandLocCaret) brandLocCaret.classList.toggle('hidden', allowedLocs.length <= 1);
+    if (locMenu) {
+      locMenu.classList.add('hidden');
+      locMenu.innerHTML = allowedLocs.map(l =>
+        '<button type="button" class="loc-switcher-item' + (l.id === s.standortId ? ' active' : '') + '" data-loc-id="' + esc(l.id) + '">' +
+          '<span>' + esc(l.name) + '</span>' +
+          '<span style="font-size:10px;opacity:0.75;">' + esc(l.id) + '</span>' +
+        '</button>'
+      ).join('');
+    }
 
     renderActiveView();
   }
@@ -531,10 +548,26 @@
     }
   }
 
+  function buildQuickOpsUrl(rawUrl, session) {
+    if (!rawUrl) return '';
+    const userName = (session && session.user && session.user.name) ? String(session.user.name).trim() : '';
+    if (!userName) return rawUrl;
+    return rawUrl + (rawUrl.indexOf('?') === -1 ? '?' : '&') + 'user=' + encodeURIComponent(userName);
+  }
+
   function renderOverview() {
     const s = STATE.session;
     const mods = s.ecosystemModules || [];
     const container = $('osMainContent');
+    const perms = (s && s.permissions) || {};
+    const opTabs = (perms.tabPermissions && perms.tabPermissions.operations !== undefined)
+      ? perms.tabPermissions.operations
+      : 'ALL';
+    const opsMod = mods.find(m => m.key === 'operations');
+    const schwundUrl = (opsMod && opsMod.schwundUrl) ? buildQuickOpsUrl(opsMod.schwundUrl, s) : '';
+    const bruchUrl = (opsMod && opsMod.bruchUrl) ? buildQuickOpsUrl(opsMod.bruchUrl, s) : '';
+    const canSchwund = !!(schwundUrl && (opTabs === 'ALL' || (Array.isArray(opTabs) && opTabs.indexOf('schwund_eingabe') !== -1)));
+    const canBruch = !!(bruchUrl && (opTabs === 'ALL' || (Array.isArray(opTabs) && opTabs.indexOf('bruch_eingabe') !== -1)));
 
     const renderTile = m =>
       '<button type="button" class="home-tile" onclick="window.SonaApp.openView(\'mod_' + esc(m.key) + '\')">' +
@@ -561,11 +594,114 @@
       '</section>';
     }).join('');
 
+    const quickOpsHtml =
+      (canSchwund ? '<button type="button" class="btn btn-sm home-quick-ops-btn" data-quick-url="' + esc(schwundUrl) + '" title="Schwund im neuen Tab erfassen">+ Schwund</button>' : '') +
+      (canBruch ? '<button type="button" class="btn btn-sm home-quick-ops-btn" data-quick-url="' + esc(bruchUrl) + '" title="Bruch im neuen Tab erfassen">+ Bruch</button>' : '');
+
     container.innerHTML =
       '<div class="os-home-greeting">' +
         '<h2>Willkommen, ' + esc(s.user.name) + '</h2>' +
+        '<div class="home-quick-toolbar">' +
+          '<div class="home-search-wrap">' +
+            '<input type="search" id="homeQuickSearch" class="input-control home-search-input" placeholder="Schnellsuche …" autocomplete="off">' +
+            '<div id="homeSearchResults" class="home-search-results hidden"></div>' +
+          '</div>' +
+          quickOpsHtml +
+        '</div>' +
       '</div>' +
       (pillarsHtml || '<div class="card"><p>Für deinen Benutzer sind aktuell noch keine Bereiche freigegeben.</p></div>');
+
+    container.querySelectorAll('.home-quick-ops-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        if (btn.dataset.quickUrl) {
+          window.open(btn.dataset.quickUrl, '_blank', 'noopener,noreferrer');
+        }
+      });
+    });
+
+    // Schnellsuche über alle freigegebenen Module, Bereiche & Aktionen
+    const searchItems = [];
+    mods.forEach(m => {
+      searchItems.push({
+        label: m.title,
+        meta: m.pillarTitle || 'Modul',
+        keywords: (m.title + ' ' + (m.subtitle || '') + ' ' + m.key).toLowerCase(),
+        run: () => window.SonaApp.openView('mod_' + m.key)
+      });
+    });
+    if (canSchwund) {
+      searchItems.push({
+        label: '+ Schwund erfassen (Neuer Tab)',
+        meta: 'Operations',
+        keywords: 'schwund verderb eingabe operations verlust',
+        run: () => window.open(schwundUrl, '_blank', 'noopener,noreferrer')
+      });
+    }
+    if (canBruch) {
+      searchItems.push({
+        label: '+ Bruch erfassen (Neuer Tab)',
+        meta: 'Operations',
+        keywords: 'bruch glas geschirr eingabe operations',
+        run: () => window.open(bruchUrl, '_blank', 'noopener,noreferrer')
+      });
+    }
+    if (perms.adminMatrix) {
+      searchItems.push({
+        label: 'Rechte-Matrix & Mitarbeiter',
+        meta: 'Administration',
+        keywords: 'rechte matrix mitarbeiter benutzer admin anfragen gmail passwort',
+        run: () => window.SonaApp.openView('rbac')
+      });
+    }
+
+    const searchInput = $('homeQuickSearch');
+    const resultsBox = $('homeSearchResults');
+    if (searchInput && resultsBox) {
+      let currentMatches = [];
+      const renderMatches = q => {
+        const clean = String(q || '').trim().toLowerCase();
+        if (!clean) {
+          currentMatches = [];
+          resultsBox.classList.add('hidden');
+          resultsBox.innerHTML = '';
+          return;
+        }
+        currentMatches = searchItems.filter(it => it.keywords.indexOf(clean) !== -1 || it.label.toLowerCase().indexOf(clean) !== -1);
+        if (!currentMatches.length) {
+          resultsBox.innerHTML = '<div style="padding:8px 10px;font-size:12px;color:var(--os-silk);">Keine Treffer für „' + esc(q) + '“</div>';
+          resultsBox.classList.remove('hidden');
+          return;
+        }
+        resultsBox.innerHTML = currentMatches.map((it, i) =>
+          '<button type="button" class="home-search-item" data-sidx="' + i + '">' +
+            '<span>' + esc(it.label) + '</span>' +
+            '<small>' + esc(it.meta) + '</small>' +
+          '</button>'
+        ).join('');
+        resultsBox.classList.remove('hidden');
+        resultsBox.querySelectorAll('.home-search-item').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const picked = currentMatches[parseInt(btn.dataset.sidx, 10)];
+            resultsBox.classList.add('hidden');
+            searchInput.value = '';
+            if (picked && picked.run) picked.run();
+          });
+        });
+      };
+
+      searchInput.addEventListener('input', () => renderMatches(searchInput.value));
+      searchInput.addEventListener('keydown', ev => {
+        if (ev.key === 'Enter' && currentMatches.length) {
+          ev.preventDefault();
+          const first = currentMatches[0];
+          resultsBox.classList.add('hidden');
+          searchInput.value = '';
+          if (first && first.run) first.run();
+        } else if (ev.key === 'Escape') {
+          resultsBox.classList.add('hidden');
+        }
+      });
+    }
   }
 
   function renderModuleBridgeView(mod) {
@@ -1420,18 +1556,12 @@
     if (btnToggle) {
       btnToggle.addEventListener('click', () => applySidebarCollapsed(!STATE.sidebarCollapsed));
     }
-    const btnBrandHome = $('btnBrandHome');
-    if (btnBrandHome) {
-      btnBrandHome.addEventListener('click', () => {
-        STATE.lastOtpResult = null;
-        STATE.activeView = 'overview';
-        renderActiveView();
-      });
-    }
-
-    $('globalLocationSelect').addEventListener('change', async ev => {
-      const targetLoc = ev.target.value;
-      window.SonaLoader.show(600);
+    async function switchToLocation(targetLoc) {
+      if (!targetLoc || (STATE.session && targetLoc === STATE.session.standortId)) {
+        if ($('locationSwitcherMenu')) $('locationSwitcherMenu').classList.add('hidden');
+        return;
+      }
+      window.SonaLoader.show(350);
       try {
         const res = await window.SonaApi.switchLocation(targetLoc);
         if (!res || !res.success || !res.token) {
@@ -1449,7 +1579,48 @@
       } finally {
         window.SonaLoader.hide();
       }
+    }
+
+    const btnBrandLoc = $('btnBrandLocation');
+    const locMenu = $('locationSwitcherMenu');
+    if (btnBrandLoc) {
+      btnBrandLoc.addEventListener('click', ev => {
+        ev.stopPropagation();
+        const locs = (STATE.session && STATE.session.locations) || [];
+        if (locs.length > 1 && locMenu) {
+          locMenu.classList.toggle('hidden');
+        } else {
+          STATE.lastOtpResult = null;
+          STATE.activeView = 'overview';
+          renderActiveView();
+        }
+      });
+    }
+    if (locMenu) {
+      locMenu.addEventListener('click', ev => {
+        const item = ev.target.closest('button[data-loc-id]');
+        if (!item) return;
+        locMenu.classList.add('hidden');
+        switchToLocation(item.dataset.locId);
+      });
+    }
+    document.addEventListener('click', ev => {
+      if (locMenu && !locMenu.classList.contains('hidden')) {
+        if (!ev.target.closest('.sidebar-brand-switcher')) {
+          locMenu.classList.add('hidden');
+        }
+      }
+      const srBox = $('homeSearchResults');
+      if (srBox && !srBox.classList.contains('hidden')) {
+        if (!ev.target.closest('.home-search-wrap')) {
+          srBox.classList.add('hidden');
+        }
+      }
     });
+
+    if ($('globalLocationSelect')) {
+      $('globalLocationSelect').addEventListener('change', ev => switchToLocation(ev.target.value));
+    }
 
     if ($('btnOpenForgotPw')) $('btnOpenForgotPw').addEventListener('click', openForgotPwModal);
     if ($('btnCloseForgotModal')) $('btnCloseForgotModal').addEventListener('click', () => $('forgotPasswordModal').classList.add('hidden'));

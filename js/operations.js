@@ -92,8 +92,15 @@
       const container = document.getElementById('osMainContent');
       if (!container) return;
 
-      const schwundUrl = (mod && mod.schwundUrl) || '';
-      const bruchUrl = (mod && mod.bruchUrl) || '';
+      const rawSchwundUrl = (mod && mod.schwundUrl) || '';
+      const rawBruchUrl = (mod && mod.bruchUrl) || '';
+      const userName = (session && session.user && session.user.name) ? String(session.user.name).trim() : '';
+      const appendUserParam = function(u) {
+        if (!u || !userName) return u;
+        return u + (u.indexOf('?') === -1 ? '?' : '&') + 'user=' + encodeURIComponent(userName);
+      };
+      const schwundUrl = appendUserParam(rawSchwundUrl);
+      const bruchUrl = appendUserParam(rawBruchUrl);
       const perms = (session && session.permissions) || {};
       const accessLevel = String(perms.accessLevel || 'READ').toUpperCase();
       const opTabs = (perms.tabPermissions && perms.tabPermissions.operations !== undefined)

@@ -161,11 +161,14 @@
   <div id="osAppShell" class="os-shell hidden">
     <aside class="os-sidebar">
       <div class="sidebar-brand">
-        <button type="button" id="btnBrandHome" class="sidebar-logo-btn" title="SONA OS Startseite">
-          <img src="./assets/sona-logo.jpg" alt="SONA Logo">
-        </button>
-        <div class="sidebar-brand-info">
-          <select id="globalLocationSelect" class="sidebar-loc-select" aria-label="Standort wechseln"></select>
+        <div class="sidebar-brand-switcher">
+          <button type="button" id="btnBrandLocation" class="sidebar-brand-trigger" title="Standort wechseln">
+            <img src="./assets/sona-logo.jpg" alt="SONA Logo">
+            <span id="sidebarBrandLocName" class="sidebar-brand-loc">Karli</span>
+            <span id="sidebarBrandLocCaret" class="sidebar-brand-caret">▾</span>
+          </button>
+          <div id="locationSwitcherMenu" class="loc-switcher-menu hidden" role="menu"></div>
+          <select id="globalLocationSelect" class="hidden" aria-label="Standort wechseln"></select>
         </div>
         <button type="button" id="btnToggleSidebar" class="sidebar-collapse-btn" title="Menü ein-/ausblenden" aria-label="Menü ein-/ausblenden">‹</button>
       </div>
