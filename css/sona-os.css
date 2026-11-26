@@ -1315,3 +1315,34 @@ tr.clickable-row:hover td {
     grid-template-columns: 1fr;
   }
 }
+
+.btn-link {
+  background: transparent;
+  border: none;
+  padding: 0;
+  color: var(--os-silk);
+  font-family: var(--font-sans);
+  font-size: 11.5px;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.btn-link:hover {
+  color: var(--os-cream);
+}
+
+.os-frame-host {
+  width: 100%;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: #000000;
+}
+
+@media (max-width: 860px) {
+  .os-frame-host {
+    height: calc(100vh - 54px);
+  }
+}

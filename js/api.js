@@ -32,18 +32,35 @@
 
   function getToken() {
     try {
-      return sessionStorage.getItem(window.SONA_OS_DEFAULTS.TOKEN_STORAGE_KEY) || '';
+      return sessionStorage.getItem(window.SONA_OS_DEFAULTS.TOKEN_STORAGE_KEY) ||
+        localStorage.getItem(window.SONA_OS_DEFAULTS.TOKEN_STORAGE_KEY) || '';
     } catch (e) {
       return '';
     }
   }
 
-  function setToken(token) {
+  function isRemembered() {
     try {
-      if (token) {
-        sessionStorage.setItem(window.SONA_OS_DEFAULTS.TOKEN_STORAGE_KEY, token);
+      return !!localStorage.getItem(window.SONA_OS_DEFAULTS.TOKEN_STORAGE_KEY);
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function setToken(token, rememberMe) {
+    try {
+      const key = window.SONA_OS_DEFAULTS.TOKEN_STORAGE_KEY;
+      if (!token) {
+        sessionStorage.removeItem(key);
+        localStorage.removeItem(key);
+        return;
+      }
+      if (rememberMe) {
+        localStorage.setItem(key, token);
+        sessionStorage.removeItem(key);
       } else {
-        sessionStorage.removeItem(window.SONA_OS_DEFAULTS.TOKEN_STORAGE_KEY);
+        sessionStorage.setItem(key, token);
+        localStorage.removeItem(key);
       }
     } catch (e) {}
   }
@@ -94,18 +111,26 @@
     getGatewayUrl: getGatewayUrl,
     setGatewayUrl: setGatewayUrl,
     getToken: getToken,
+    isRemembered: isRemembered,
     setToken: setToken,
     callPost: callPost,
     ping: () => callPost('os_ping', {}),
     listUsers: () => callPost('os_users', {}),
-    login: (email, password, standortId) => callPost('os_login', {
+    login: (email, password, standortId, rememberMe) => callPost('os_login', {
       email: email,
       password: password,
-      standortId: standortId || ''
+      standortId: standortId || '',
+      rememberMe: !!rememberMe
     }),
     registerRequest: (payload) => callPost('os_register_request', payload || {}),
     changePassword: (currentPassword, newPassword) => callPost('os_change_password', {
       currentPassword: currentPassword,
+      newPassword: newPassword
+    }),
+    requestPasswordReset: (email) => callPost('os_password_reset_request', { email: email }),
+    confirmPasswordReset: (email, code, newPassword) => callPost('os_password_reset_confirm', {
+      email: email,
+      code: code,
       newPassword: newPassword
     }),
     checkSession: () => callPost('os_session_check', {}),

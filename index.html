@@ -13,6 +13,8 @@
   <link rel="apple-touch-icon" href="./assets/apple-touch-icon.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preconnect" href="https://script.google.com" crossorigin>
+  <link rel="preconnect" href="https://script.googleusercontent.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="./css/sona-os.css">
 </head>
@@ -58,8 +60,18 @@
         </div>
 
         <div class="form-field">
-          <label class="kicker" for="loginPassword">Passwort / Einmal-Passwort</label>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+            <label class="kicker" for="loginPassword" style="margin:0;">Passwort / Einmal-Passwort</label>
+            <button type="button" id="btnOpenForgotPw" class="btn-link">Passwort vergessen?</button>
+          </div>
           <input type="password" id="loginPassword" class="input-control" autocomplete="current-password" placeholder="Passwort eingeben">
+        </div>
+
+        <div style="margin-bottom:14px;">
+          <label class="rbac-tab-chip" style="width:100%;justify-content:flex-start;padding:7px 10px;">
+            <input type="checkbox" id="loginRememberMe" checked>
+            <span>Angemeldet bleiben (30 Tage auf diesem Gerät)</span>
+          </label>
         </div>
 
         <button type="button" id="btnLoginSubmit" class="btn btn-primary" style="width:100%;height:42px;">Anmelden</button>
@@ -170,6 +182,7 @@
 
     <div class="os-main">
       <main id="osMainContent" class="os-content"></main>
+      <div id="osModuleFrameHost" class="os-frame-host hidden"></div>
     </div>
 
     <nav id="osMobileNav" class="os-mobile-nav" aria-label="Mobile Navigation"></nav>
@@ -192,6 +205,52 @@
       <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;">
         <button type="button" id="btnResetGatewayUrl" class="btn btn-sm">Standard zurücksetzen</button>
         <button type="button" id="btnSaveGatewayUrl" class="btn btn-primary btn-sm">Speichern</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Forgot Password Self-Service Modal (6-Digit Email Code) -->
+  <div id="forgotPasswordModal" class="modal-backdrop hidden">
+    <div class="modal-card">
+      <div class="card-head">
+        <div>
+          <div class="kicker">Passwort-Wiederherstellung</div>
+          <h3>Passwort vergessen?</h3>
+        </div>
+        <button type="button" id="btnCloseForgotModal" class="btn btn-sm">Schließen</button>
+      </div>
+
+      <div id="forgotPwError" class="lock-error hidden"></div>
+      <div id="forgotPwSuccess" class="lock-success hidden"></div>
+
+      <div id="forgotStep1Pane">
+        <p class="module-desc" style="margin-bottom:12px;">Gib deine hinterlegte Gmail-Adresse ein. Du erhältst einen 6-stelligen Bestätigungscode (15 Min. gültig) – dein altes Passwort bleibt bis zur Bestätigung aktiv.</p>
+        <div class="form-field">
+          <label class="kicker" for="forgotEmail">Gmail / E-Mail-Adresse</label>
+          <input type="email" id="forgotEmail" class="input-control" autocomplete="email" placeholder="name@gmail.com">
+        </div>
+        <div style="display:flex;justify-content:flex-end;gap:8px;">
+          <button type="button" id="btnRequestResetCode" class="btn btn-primary btn-sm">Code per E-Mail senden</button>
+        </div>
+      </div>
+
+      <div id="forgotStep2Pane" class="hidden">
+        <div class="form-field">
+          <label class="kicker" for="forgotCode">6-stelliger Bestätigungscode aus deiner E-Mail</label>
+          <input type="text" id="forgotCode" class="input-control" inputmode="numeric" maxlength="6" placeholder="z. B. 482913">
+        </div>
+        <div class="form-field">
+          <label class="kicker" for="forgotNewPw">Neues Passwort (mind. 6 Zeichen)</label>
+          <input type="password" id="forgotNewPw" class="input-control" autocomplete="new-password" minlength="6" maxlength="64">
+        </div>
+        <div class="form-field">
+          <label class="kicker" for="forgotConfirmPw">Neues Passwort bestätigen</label>
+          <input type="password" id="forgotConfirmPw" class="input-control" autocomplete="new-password" minlength="6" maxlength="64">
+        </div>
+        <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;">
+          <button type="button" id="btnBackForgotStep1" class="btn btn-sm">Neuen Code anfordern</button>
+          <button type="button" id="btnConfirmResetPw" class="btn btn-primary btn-sm">Neues Passwort speichern</button>
+        </div>
       </div>
     </div>
   </div>

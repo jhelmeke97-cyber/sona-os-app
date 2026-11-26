@@ -15,6 +15,7 @@
     lastOtpResult: null,
     tabCatalog: { rezeptur: [], einkauf: [], operations: [] },
     openPillars: { WARENWIRTSCHAFT: false, CONTROLLING: false, OPERATIONS: false },
+    moduleFrames: {},
     sidebarCollapsed: false,
     deferredInstallPrompt: null
   };
@@ -90,7 +91,19 @@
     setAuthMessages('', '');
   }
 
+  function clearModuleFrames() {
+    STATE.moduleFrames = {};
+    const host = $('osModuleFrameHost');
+    if (host) {
+      host.innerHTML = '';
+      host.classList.add('hidden');
+    }
+    const main = $('osMainContent');
+    if (main) main.classList.remove('hidden');
+  }
+
   function clearAllModuleCaches() {
+    clearModuleFrames();
     if (window.SonaBestandModule) window.SonaBestandModule.clearCache();
     if (window.SonaControllingModule) window.SonaControllingModule.clearCache();
     if (window.SonaEinkaufModule) window.SonaEinkaufModule.clearCache();
@@ -109,6 +122,7 @@
     $('forcePasswordScreen').classList.add('hidden');
     $('changePasswordModal').classList.add('hidden');
     $('userProfileModal').classList.add('hidden');
+    if ($('forgotPasswordModal')) $('forgotPasswordModal').classList.add('hidden');
     $('osNavList').innerHTML = '';
     $('osMobileNav').innerHTML = '';
     $('osMainContent').innerHTML = '';
@@ -166,6 +180,7 @@
   async function submitLogin() {
     const email = ($('loginEmail') && $('loginEmail').value || '').trim().toLowerCase();
     const password = ($('loginPassword') && $('loginPassword').value || '').trim();
+    const rememberMe = !!($('loginRememberMe') && $('loginRememberMe').checked);
 
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       setAuthMessages('Bitte gültige Gmail / E-Mail-Adresse eingeben.', '');
@@ -177,15 +192,15 @@
     }
 
     setAuthMessages('', '');
-    window.SonaLoader.show(0);
+    window.SonaLoader.show(120);
     try {
-      const res = await window.SonaApi.login(email, password, '');
+      const res = await window.SonaApi.login(email, password, '', rememberMe);
       if (!res || !res.success || !res.token) {
         if ($('loginPassword')) $('loginPassword').value = '';
         setAuthMessages((res && res.error) || 'Anmeldung fehlgeschlagen.', '');
         return;
       }
-      window.SonaApi.setToken(res.token);
+      window.SonaApi.setToken(res.token, rememberMe);
       STATE.session = res;
       if ($('loginPassword')) $('loginPassword').value = '';
       if (res.mustChangePassword) {
@@ -283,7 +298,7 @@
         showForceErr((res && res.error) || 'Passwort konnte nicht gespeichert werden.');
         return;
       }
-      window.SonaApi.setToken(res.token);
+      window.SonaApi.setToken(res.token, window.SonaApi.isRemembered());
       STATE.session = res;
       STATE.lastLoginSecret = '';
       if ($('forcePwCurrent')) $('forcePwCurrent').value = '';
@@ -384,22 +399,43 @@
     renderActiveView();
   }
 
+  function showMainContentPane() {
+    const mainEl = $('osMainContent');
+    const hostEl = $('osModuleFrameHost');
+    if (hostEl) hostEl.classList.add('hidden');
+    if (mainEl) {
+      mainEl.classList.remove('hidden');
+      mainEl.classList.remove('os-content-fullbleed');
+    }
+  }
+
+  function buildDirectEmbeddedUrl(mod, s) {
+    if (!mod || !mod.legacyUrl || mod.key === 'rezeptur') return '';
+    const loc = encodeURIComponent(s.standortId || '001');
+    const sep = mod.legacyUrl.indexOf('?') === -1 ? '?' : '&';
+    let url = mod.legacyUrl + sep + 'standortId=' + loc + '&loc=' + loc + '&embedded=1';
+    const tabPerms = s.permissions && s.permissions.tabPermissions;
+    if (mod.key === 'einkauf' && tabPerms && Array.isArray(tabPerms.einkauf)) {
+      url += '&tabs=' + encodeURIComponent(tabPerms.einkauf.join(','));
+    }
+    return url;
+  }
+
   function renderActiveView() {
     const s = STATE.session;
     if (!s) return;
-
-    const mainEl = $('osMainContent');
-    if (mainEl) mainEl.classList.remove('os-content-fullbleed');
 
     document.querySelectorAll('#osNavList .os-nav-btn, #osMobileNav button').forEach(btn => {
       btn.classList.toggle('active', btn.dataset.view === STATE.activeView);
     });
 
     if (STATE.activeView === 'overview') {
+      showMainContentPane();
       renderOverview();
       return;
     }
     if (STATE.activeView === 'rbac' && s.permissions.adminMatrix) {
+      showMainContentPane();
       renderRbacMatrixView();
       return;
     }
@@ -413,6 +449,7 @@
           STATE.openPillars[mod.pillar || 'WARENWIRTSCHAFT'] = true;
         }
         if (mod.key === 'operations' && window.SonaOperationsModule) {
+          showMainContentPane();
           window.SonaOperationsModule.mount(s, mod);
         } else {
           renderEmbeddedModuleView(mod);
@@ -422,29 +459,48 @@
     }
 
     STATE.activeView = 'overview';
+    showMainContentPane();
     renderOverview();
   }
 
   async function renderEmbeddedModuleView(mod) {
     const s = STATE.session;
     const container = $('osMainContent');
-    if (!container || !s) return;
+    const hostEl = $('osModuleFrameHost');
+    if (!container || !hostEl || !s) return;
 
-    container.classList.add('os-content-fullbleed');
-    container.innerHTML = '';
-    window.SonaLoader.show(350);
+    const frameKey = String(s.standortId || '001') + ':' + String(mod.key);
+    const existingFrame = STATE.moduleFrames[frameKey];
+
+    // Keep-Alive Iframe Pool: Bereits geladene Module sofort (0 ms) einblenden
+    if (existingFrame && existingFrame.parentNode === hostEl) {
+      container.classList.add('hidden');
+      hostEl.classList.remove('hidden');
+      Object.keys(STATE.moduleFrames).forEach(k => {
+        if (STATE.moduleFrames[k]) {
+          STATE.moduleFrames[k].classList.toggle('hidden', k !== frameKey);
+        }
+      });
+      return;
+    }
+
+    window.SonaLoader.show(250);
 
     try {
-      const res = await window.SonaApi.getModuleLaunchUrl(mod.key, s.standortId);
-      if (!res || !res.success || !res.launchUrl) {
-        container.classList.remove('os-content-fullbleed');
-        container.innerHTML =
-          '<div class="card">' +
-            '<h3>' + esc(mod.title) + ' konnte nicht gestartet werden</h3>' +
-            '<p class="module-desc">' + esc((res && res.error) || 'Zugriff verweigert oder Verbindungsfehler.') + '</p>' +
-          '</div>';
-        window.SonaLoader.hide();
-        return;
+      let launchUrl = buildDirectEmbeddedUrl(mod, s);
+      if (!launchUrl) {
+        const res = await window.SonaApi.getModuleLaunchUrl(mod.key, s.standortId);
+        if (!res || !res.success || !res.launchUrl) {
+          showMainContentPane();
+          container.innerHTML =
+            '<div class="card">' +
+              '<h3>' + esc(mod.title) + ' konnte nicht gestartet werden</h3>' +
+              '<p class="module-desc">' + esc((res && res.error) || 'Zugriff verweigert oder Verbindungsfehler.') + '</p>' +
+            '</div>';
+          window.SonaLoader.hide();
+          return;
+        }
+        launchUrl = res.launchUrl;
       }
 
       const iframe = document.createElement('iframe');
@@ -452,12 +508,20 @@
       iframe.title = mod.title;
       iframe.setAttribute('allow', 'clipboard-read; clipboard-write; fullscreen');
       iframe.addEventListener('load', () => window.SonaLoader.hide());
-      iframe.src = res.launchUrl;
-      container.innerHTML = '';
-      container.appendChild(iframe);
+      iframe.src = launchUrl;
+
+      STATE.moduleFrames[frameKey] = iframe;
+      Object.keys(STATE.moduleFrames).forEach(k => {
+        if (STATE.moduleFrames[k]) {
+          STATE.moduleFrames[k].classList.toggle('hidden', k !== frameKey);
+        }
+      });
+      hostEl.appendChild(iframe);
+      container.classList.add('hidden');
+      hostEl.classList.remove('hidden');
       setTimeout(() => window.SonaLoader.hide(), 8000);
     } catch (err) {
-      container.classList.remove('os-content-fullbleed');
+      showMainContentPane();
       container.innerHTML =
         '<div class="card">' +
           '<h3>Verbindungsfehler</h3>' +
@@ -1161,7 +1225,7 @@
         showErr((res && res.error) || 'Passwort konnte nicht geändert werden.');
         return;
       }
-      window.SonaApi.setToken(res.token);
+      window.SonaApi.setToken(res.token, window.SonaApi.isRemembered());
       STATE.session = res;
       $('changePasswordModal').classList.add('hidden');
       showToast('Passwort erfolgreich geändert.');
@@ -1169,6 +1233,108 @@
       showErr('Verbindungsfehler: ' + err.message);
     } finally {
       saveBtn.disabled = false;
+    }
+  }
+
+  function setForgotMessages(errMsg, okMsg) {
+    const errEl = $('forgotPwError');
+    const okEl = $('forgotPwSuccess');
+    if (errEl) {
+      if (errMsg) {
+        errEl.textContent = errMsg;
+        errEl.classList.remove('hidden');
+      } else {
+        errEl.textContent = '';
+        errEl.classList.add('hidden');
+      }
+    }
+    if (okEl) {
+      if (okMsg) {
+        okEl.textContent = okMsg;
+        okEl.classList.remove('hidden');
+      } else {
+        okEl.textContent = '';
+        okEl.classList.add('hidden');
+      }
+    }
+  }
+
+  function openForgotPwModal() {
+    const modal = $('forgotPasswordModal');
+    if (!modal) return;
+    setForgotMessages('', '');
+    const loginEmail = ($('loginEmail') && $('loginEmail').value || '').trim();
+    if ($('forgotEmail')) $('forgotEmail').value = loginEmail;
+    if ($('forgotCode')) $('forgotCode').value = '';
+    if ($('forgotNewPw')) $('forgotNewPw').value = '';
+    if ($('forgotConfirmPw')) $('forgotConfirmPw').value = '';
+    $('forgotStep1Pane').classList.remove('hidden');
+    $('forgotStep2Pane').classList.add('hidden');
+    modal.classList.remove('hidden');
+  }
+
+  async function submitForgotStep1() {
+    const email = ($('forgotEmail') && $('forgotEmail').value || '').trim().toLowerCase();
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setForgotMessages('Bitte gültige Gmail / E-Mail-Adresse eingeben.', '');
+      return;
+    }
+    setForgotMessages('', '');
+    const btn = $('btnRequestResetCode');
+    btn.disabled = true;
+    try {
+      const res = await window.SonaApi.requestPasswordReset(email);
+      if (!res || !res.success) {
+        setForgotMessages((res && res.error) || 'Code konnte nicht angefordert werden.', '');
+        return;
+      }
+      setForgotMessages('', res.message || 'Bestätigungscode wurde per E-Mail gesendet.');
+      $('forgotStep1Pane').classList.add('hidden');
+      $('forgotStep2Pane').classList.remove('hidden');
+    } catch (err) {
+      setForgotMessages('Verbindungsfehler: ' + err.message, '');
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  async function submitForgotStep2() {
+    const email = ($('forgotEmail') && $('forgotEmail').value || '').trim().toLowerCase();
+    const code = ($('forgotCode') && $('forgotCode').value || '').trim();
+    const newPw = ($('forgotNewPw') && $('forgotNewPw').value || '').trim();
+    const confirmPw = ($('forgotConfirmPw') && $('forgotConfirmPw').value || '').trim();
+
+    if (!/^\d{6}$/.test(code)) {
+      setForgotMessages('Bitte den 6-stelligen Code aus deiner E-Mail eingeben.', '');
+      return;
+    }
+    if (newPw.length < 6 || newPw.length > 64) {
+      setForgotMessages('Das neue Passwort muss zwischen 6 und 64 Zeichen lang sein.', '');
+      return;
+    }
+    if (newPw !== confirmPw) {
+      setForgotMessages('Die beiden neuen Passwörter stimmen nicht überein.', '');
+      return;
+    }
+
+    setForgotMessages('', '');
+    const btn = $('btnConfirmResetPw');
+    btn.disabled = true;
+    try {
+      const res = await window.SonaApi.confirmPasswordReset(email, code, newPw);
+      if (!res || !res.success) {
+        setForgotMessages((res && res.error) || 'Zurücksetzen fehlgeschlagen.', '');
+        return;
+      }
+      $('forgotPasswordModal').classList.add('hidden');
+      if ($('loginEmail')) $('loginEmail').value = email;
+      if ($('loginPassword')) $('loginPassword').value = '';
+      switchAuthTab('login');
+      setAuthMessages('', res.message || 'Passwort gespeichert. Bitte jetzt anmelden.');
+    } catch (err) {
+      setForgotMessages('Verbindungsfehler: ' + err.message, '');
+    } finally {
+      btn.disabled = false;
     }
   }
 
@@ -1273,7 +1439,7 @@
           renderAuthenticatedShell();
           return;
         }
-        window.SonaApi.setToken(res.token);
+        window.SonaApi.setToken(res.token, window.SonaApi.isRemembered());
         STATE.session = res;
         clearAllModuleCaches();
         renderAuthenticatedShell();
@@ -1284,6 +1450,18 @@
         window.SonaLoader.hide();
       }
     });
+
+    if ($('btnOpenForgotPw')) $('btnOpenForgotPw').addEventListener('click', openForgotPwModal);
+    if ($('btnCloseForgotModal')) $('btnCloseForgotModal').addEventListener('click', () => $('forgotPasswordModal').classList.add('hidden'));
+    if ($('btnRequestResetCode')) $('btnRequestResetCode').addEventListener('click', submitForgotStep1);
+    if ($('btnConfirmResetPw')) $('btnConfirmResetPw').addEventListener('click', submitForgotStep2);
+    if ($('btnBackForgotStep1')) {
+      $('btnBackForgotStep1').addEventListener('click', () => {
+        setForgotMessages('', '');
+        $('forgotStep2Pane').classList.add('hidden');
+        $('forgotStep1Pane').classList.remove('hidden');
+      });
+    }
 
     $('btnOpenChangePw').addEventListener('click', openChangePwModal);
     $('btnCloseChangePwModal').addEventListener('click', () => $('changePasswordModal').classList.add('hidden'));
@@ -1335,7 +1513,6 @@
 
   async function init() {
     window.SonaLoader.init();
-    window.SonaLoader.show(0);
     bindGlobalUiEvents();
 
     window.SonaApi.setUnauthorizedHandler(msg => {
@@ -1348,21 +1525,26 @@
       navigator.serviceWorker.register('./sw.js').catch(() => {});
     }
 
+    const existingToken = window.SonaApi.getToken();
+    if (!existingToken) {
+      window.SonaLoader.hide();
+      loadPublicMeta();
+      return;
+    }
+
+    window.SonaLoader.show(200);
     try {
-      const existingToken = window.SonaApi.getToken();
-      if (existingToken) {
-        const sess = await window.SonaApi.checkSession();
-        if (sess && sess.success) {
-          STATE.session = sess;
-          if (sess.mustChangePassword) {
-            showForcePasswordScreen();
-            return;
-          }
-          renderAuthenticatedShell();
+      const sess = await window.SonaApi.checkSession();
+      if (sess && sess.success) {
+        STATE.session = sess;
+        if (sess.mustChangePassword) {
+          showForcePasswordScreen();
           return;
         }
+        renderAuthenticatedShell();
+        return;
       }
-      await loadPublicMeta();
+      loadPublicMeta();
     } finally {
       window.SonaLoader.hide();
     }
