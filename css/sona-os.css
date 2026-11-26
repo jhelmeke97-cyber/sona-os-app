@@ -122,6 +122,14 @@ h1, h2, h3, .font-serif-title {
   outline: none;
   border-color: var(--os-cream);
 }
+.input-control:-webkit-autofill,
+.input-control:-webkit-autofill:hover,
+.input-control:-webkit-autofill:focus {
+  -webkit-box-shadow: 0 0 0 1000px #0c0b09 inset !important;
+  -webkit-text-fill-color: var(--os-cream) !important;
+  caret-color: var(--os-cream);
+  transition: background-color 9999s ease-in-out 0s;
+}
 select.input-control option {
   background: var(--os-surface);
   color: var(--os-cream);
