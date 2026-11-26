@@ -214,9 +214,17 @@
       standortId: standortId,
       entry: entry || {}
     }),
-    getOpsMonthlySummary: (standortId, forceRefresh) => callPost('os_ops_monthly_summary', {
+    getOpsMonthlySummary: (standortId, forceRefresh, periodKey) => callPost('os_ops_monthly_summary', {
       standortId: standortId,
-      forceRefresh: !!forceRefresh
+      forceRefresh: !!forceRefresh,
+      periodKey: periodKey || ''
+    }),
+    getOpsRatingMeta: (standortId) => callPost('os_ops_rating_meta', {
+      standortId: standortId
+    }),
+    saveOpsRating: (standortId, entry) => callPost('os_ops_rating_save', {
+      standortId: standortId,
+      entry: entry || {}
     }),
     getModuleLaunchUrl: (moduleKey, standortId) => callPost('os_module_launch', {
       moduleKey: moduleKey,
