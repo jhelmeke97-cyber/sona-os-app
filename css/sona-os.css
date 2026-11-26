@@ -942,7 +942,7 @@ tr.clickable-row:hover td {
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  height: calc(100vh - 61px);
+  height: 100vh;
 }
 
 .os-module-frame {
@@ -954,8 +954,227 @@ tr.clickable-row:hover td {
   display: block;
 }
 
+/* ============================================================================
+   Collapsible Accordion Sidebar, Minimal Brand Header & Granular Tab-RBAC UI
+   ============================================================================ */
+.os-shell {
+  transition: grid-template-columns 0.2s ease;
+}
+
+.os-shell.sidebar-collapsed {
+  grid-template-columns: 56px minmax(0, 1fr);
+}
+
+.os-shell.sidebar-collapsed .os-sidebar {
+  padding: 12px 6px;
+  align-items: center;
+}
+
+.os-shell.sidebar-collapsed .sidebar-brand {
+  flex-direction: column;
+  gap: 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--os-line);
+}
+
+.os-shell.sidebar-collapsed .sidebar-brand-info,
+.os-shell.sidebar-collapsed .os-nav-list,
+.os-shell.sidebar-collapsed .sidebar-footer {
+  display: none;
+}
+
+.sidebar-logo-btn {
+  background: transparent;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.sidebar-logo-btn img {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid var(--os-line-strong);
+}
+
+.sidebar-brand-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.sidebar-loc-select {
+  width: 100%;
+  background: transparent;
+  color: var(--os-cream);
+  border: 1px solid transparent;
+  border-radius: 4px;
+  padding: 4px 6px;
+  font-family: var(--font-serif);
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  outline: none;
+}
+
+.sidebar-loc-select:hover,
+.sidebar-loc-select:focus {
+  border-color: var(--os-line);
+  background: #141414;
+}
+
+.sidebar-loc-select option {
+  background: #121212;
+  color: var(--os-cream);
+  font-family: var(--font-sans);
+  font-size: 13px;
+}
+
+.sidebar-collapse-btn {
+  width: 26px;
+  height: 26px;
+  border-radius: 4px;
+  border: 1px solid var(--os-line);
+  background: transparent;
+  color: var(--os-silk);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all 0.15s ease;
+}
+
+.sidebar-collapse-btn:hover {
+  border-color: var(--os-line-strong);
+  color: var(--os-cream);
+  background: rgba(245, 236, 215, 0.06);
+}
+
+.os-nav-group {
+  display: flex;
+  flex-direction: column;
+  margin-top: 4px;
+}
+
+.os-nav-group-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 9px 10px;
+  background: transparent;
+  border: none;
+  border-radius: var(--os-radius);
+  color: var(--os-silk);
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.os-nav-group-btn:hover {
+  color: var(--os-cream);
+  background: rgba(245, 236, 215, 0.04);
+}
+
+.os-nav-chevron {
+  font-size: 10px;
+  transition: transform 0.18s ease;
+}
+
+.os-nav-group.open .os-nav-chevron {
+  transform: rotate(90deg);
+}
+
+.os-nav-group-items {
+  display: none;
+  flex-direction: column;
+  gap: 2px;
+  padding: 2px 0 6px 10px;
+  margin-left: 8px;
+  border-left: 1px solid var(--os-line);
+}
+
+.os-nav-group.open .os-nav-group-items {
+  display: flex;
+}
+
+.os-nav-divider {
+  height: 1px;
+  background: var(--os-line);
+  margin: 10px 4px;
+}
+
+.rbac-tabs-row td {
+  background: #0B0B0B !important;
+  padding: 14px 16px !important;
+  border-bottom: 1px solid var(--os-line-strong);
+}
+
+.rbac-tabs-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.rbac-tabs-box {
+  background: var(--os-card);
+  border: 1px solid var(--os-line);
+  border-radius: var(--os-radius);
+  padding: 12px 14px;
+}
+
+.rbac-tabs-box-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+
+.rbac-tab-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.rbac-tab-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11.5px;
+  color: var(--os-cream);
+  background: #121212;
+  border: 1px solid var(--os-line);
+  border-radius: 4px;
+  padding: 4px 8px;
+  cursor: pointer;
+}
+
+.rbac-tab-chips.disabled {
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+@media (max-width: 960px) {
+  .rbac-tabs-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 @media (max-width: 860px) {
   .os-content-fullbleed {
-    height: calc(100vh - 112px);
+    height: calc(100vh - 54px);
   }
 }

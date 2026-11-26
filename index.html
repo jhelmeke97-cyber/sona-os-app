@@ -90,36 +90,25 @@
   <div id="osAppShell" class="os-shell hidden">
     <aside class="os-sidebar">
       <div class="sidebar-brand">
-        <img src="./assets/sona-logo.jpg" alt="SONA Logo">
-        <div>
-          <div class="kicker">SONA Leipzig</div>
-          <div class="sidebar-brand-title">SONA OS</div>
+        <button type="button" id="btnBrandHome" class="sidebar-logo-btn" title="SONA OS Startseite">
+          <img src="./assets/sona-logo.jpg" alt="SONA Logo">
+        </button>
+        <div class="sidebar-brand-info">
+          <select id="globalLocationSelect" class="sidebar-loc-select" aria-label="Standort wechseln"></select>
         </div>
+        <button type="button" id="btnToggleSidebar" class="sidebar-collapse-btn" title="Menü ein-/ausblenden" aria-label="Menü ein-/ausblenden">‹</button>
       </div>
 
       <nav id="osNavList" class="os-nav-list" aria-label="SONA OS Navigation"></nav>
 
       <div class="sidebar-footer">
         <div id="sidebarUserMeta"></div>
-        <button type="button" id="btnLockLogout" class="btn btn-sm" style="width:100%;">Sperren / Abmelden</button>
+        <button type="button" id="btnInstallPwa" class="btn btn-primary btn-sm hidden" style="width:100%;">App installieren</button>
+        <button type="button" id="btnLockLogout" class="btn btn-sm" style="width:100%;">Sperren</button>
       </div>
     </aside>
 
     <div class="os-main">
-      <header class="os-topbar">
-        <div class="os-topbar-title">
-          <div class="kicker">SONA OS · Zentrale Steuerung</div>
-          <h2 id="activeViewTitle">SONA OS – Übersicht</h2>
-        </div>
-
-        <div class="os-topbar-actions">
-          <select id="globalLocationSelect" class="input-control os-topbar-select" aria-label="Standort wechseln"></select>
-          <span id="topbarLocationBadge" class="badge"></span>
-          <span id="topbarUserBadge" class="badge"></span>
-          <button type="button" id="btnInstallPwa" class="btn btn-primary btn-sm hidden">App installieren</button>
-        </div>
-      </header>
-
       <main id="osMainContent" class="os-content"></main>
     </div>
 

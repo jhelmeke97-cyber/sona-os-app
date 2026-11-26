@@ -7,8 +7,15 @@
     pinBuffer: '',
     users: [],
     rbacEntries: [],
+    tabCatalog: { rezeptur: [], einkauf: [], operations: [] },
+    openPillars: { WARENWIRTSCHAFT: false, CONTROLLING: false, OPERATIONS: false },
+    sidebarCollapsed: false,
     deferredInstallPrompt: null
   };
+
+  function shortLocName(name) {
+    return String(name || '').replace(/^sona\s+/i, '').trim() || String(name || '');
+  }
 
   function $(id) {
     return document.getElementById(id);
@@ -171,24 +178,46 @@
       STATE.activeView = 'overview';
     }
 
-    const pillarOrder = [
-      { id: 'ROOT', label: '' },
+    const pillarGroups = [
       { id: 'WARENWIRTSCHAFT', label: 'Warenwirtschaft' },
       { id: 'CONTROLLING', label: 'Controlling' },
-      { id: 'OPERATIONS', label: 'Operations' },
-      { id: 'ADMIN', label: 'Administration' }
+      { id: 'OPERATIONS', label: 'Operations' }
     ];
 
-    $('osNavList').innerHTML = pillarOrder.map(group => {
+    let navHtml =
+      '<button type="button" class="os-nav-btn' + (STATE.activeView === 'overview' ? ' active' : '') + '" data-view="overview">' +
+        '<span>Startseite</span>' +
+      '</button>';
+
+    navHtml += pillarGroups.map(group => {
       const items = navItems.filter(it => it.pillar === group.id);
       if (!items.length) return '';
-      const heading = group.label ? '<div class="os-nav-section-label">' + esc(group.label) + '</div>' : '';
-      return heading + items.map(item =>
-        '<button type="button" class="os-nav-btn' + (STATE.activeView === item.key ? ' active' : '') + '" data-view="' + esc(item.key) + '">' +
-          '<span>' + esc(item.title) + '</span>' +
-        '</button>'
-      ).join('');
+      const isOpen = !!STATE.openPillars[group.id] || items.some(it => it.key === STATE.activeView);
+      STATE.openPillars[group.id] = isOpen;
+      return '<div class="os-nav-group' + (isOpen ? ' open' : '') + '" data-pillar="' + esc(group.id) + '">' +
+        '<button type="button" class="os-nav-group-btn" data-toggle-pillar="' + esc(group.id) + '">' +
+          '<span>' + esc(group.label) + '</span>' +
+          '<span class="os-nav-chevron">▸</span>' +
+        '</button>' +
+        '<div class="os-nav-group-items">' +
+          items.map(item =>
+            '<button type="button" class="os-nav-btn' + (STATE.activeView === item.key ? ' active' : '') + '" data-view="' + esc(item.key) + '">' +
+              '<span>' + esc(item.title) + '</span>' +
+            '</button>'
+          ).join('') +
+        '</div>' +
+      '</div>';
     }).join('');
+
+    if (s.permissions.adminMatrix) {
+      navHtml +=
+        '<div class="os-nav-divider"></div>' +
+        '<button type="button" class="os-nav-btn' + (STATE.activeView === 'rbac' ? ' active' : '') + '" data-view="rbac">' +
+          '<span>Rechte-Matrix</span>' +
+        '</button>';
+    }
+
+    $('osNavList').innerHTML = navHtml;
 
     $('osMobileNav').innerHTML = navItems.map(item =>
       '<button type="button" class="' + (STATE.activeView === item.key ? 'active' : '') + '" data-view="' + esc(item.key) + '">' +
@@ -197,19 +226,15 @@
     ).join('');
 
     $('sidebarUserMeta').innerHTML =
-      '<div class="kicker">Angemeldet</div>' +
-      '<div style="font-weight:600;color:var(--os-cream);margin-top:2px;">' + esc(s.user.name) + '</div>' +
-      '<div style="font-size:11px;color:var(--os-silk);">Rolle: ' + esc(s.user.role) + ' · Stufe: ' + esc(s.permissions.accessLevel) + '</div>';
+      '<div style="font-weight:600;color:var(--os-cream);font-size:13px;">' + esc(s.user.name) + '</div>' +
+      '<div style="font-size:11px;color:var(--os-silk);">' + esc(s.user.role) + '</div>';
 
     const locSelect = $('globalLocationSelect');
     const allowedLocs = s.locations || [{ id: s.standortId, name: s.standortName }];
     locSelect.innerHTML = allowedLocs.map(l =>
-      '<option value="' + esc(l.id) + '"' + (l.id === s.standortId ? ' selected' : '') + '>' + esc(l.name) + ' (' + esc(l.id) + ')</option>'
+      '<option value="' + esc(l.id) + '"' + (l.id === s.standortId ? ' selected' : '') + '>' + esc(shortLocName(l.name)) + '</option>'
     ).join('');
     locSelect.disabled = allowedLocs.length <= 1;
-
-    $('topbarUserBadge').textContent = s.user.name + ' · ' + s.user.role;
-    $('topbarLocationBadge').textContent = s.standortName + ' (' + s.standortId + ')';
 
     renderActiveView();
   }
@@ -226,12 +251,10 @@
     });
 
     if (STATE.activeView === 'overview') {
-      $('activeViewTitle').textContent = 'Startseite';
       renderOverview();
       return;
     }
     if (STATE.activeView === 'rbac' && s.permissions.adminMatrix) {
-      $('activeViewTitle').textContent = 'Rechte-Matrix';
       renderRbacMatrixView();
       return;
     }
@@ -239,7 +262,11 @@
       const modKey = STATE.activeView.slice(4);
       const mod = (s.ecosystemModules || []).find(m => m.key === modKey);
       if (mod) {
-        $('activeViewTitle').textContent = mod.title;
+        const grp = document.querySelector('#osNavList .os-nav-group[data-pillar="' + (mod.pillar || 'WARENWIRTSCHAFT') + '"]');
+        if (grp) {
+          grp.classList.add('open');
+          STATE.openPillars[mod.pillar || 'WARENWIRTSCHAFT'] = true;
+        }
         if (mod.key === 'operations' && window.SonaOperationsModule) {
           window.SonaOperationsModule.mount(s, mod);
         } else {
@@ -328,7 +355,6 @@
     container.innerHTML =
       '<div class="os-home-greeting">' +
         '<h2>Willkommen, ' + esc(s.user.name) + '</h2>' +
-        '<span class="badge">' + esc(s.standortName) + ' (' + esc(s.standortId) + ')</span>' +
       '</div>' +
       (pillarsHtml || '<div class="card"><p>Für deinen Benutzer sind aktuell noch keine Bereiche freigegeben.</p></div>');
   }
@@ -358,17 +384,38 @@
     container.innerHTML =
       '<div class="card">' +
         '<div class="card-head">' +
-          '<div><div class="kicker">Administration</div><h3>Zentrale Rechte-Matrix (pro Benutzer &amp; Standort)</h3></div>' +
+          '<div><div class="kicker">Administration</div><h3>Mitarbeiter- &amp; Tab-Rechte-Matrix</h3></div>' +
           '<button type="button" class="btn btn-sm" id="btnReloadRbac">Aktualisieren</button>' +
         '</div>' +
-        '<p class="module-desc" style="margin-bottom:14px;">Änderungen greifen sofort serverseitig bei jedem Session-Check und API-Aufruf (Gespeichert im Tab „SONA_OS_RECHTEMATRIX“).</p>' +
+        '<p class="module-desc" style="margin-bottom:14px;">Steuere pro Mitarbeiter die Hauptmodule, Standorte, Zugriffsstufe und über <b>Tabs ▾</b> die feingranularen Tab-Freigaben (Gesamtfreigabe oder Teilzugriff für Rezepturen &amp; Einkauf).</p>' +
         '<div class="table-wrap"><table id="rbacTable"><thead><tr>' +
-          '<th>Benutzer</th><th>Rolle</th><th>Einkauf</th><th>Rezeptur</th><th>Controlling</th><th>Bestand</th><th>Admin</th><th>Standorte</th><th>Stufe</th><th>Quelle</th><th>Aktion</th>' +
+          '<th>Benutzer</th><th>Rolle</th><th>Einkauf</th><th>Rezepturen</th><th>Controlling</th><th>Bestand</th><th>Admin</th><th>Standorte</th><th>Stufe</th><th>Tab-Details</th><th>Aktion</th>' +
         '</tr></thead><tbody id="rbacBody"><tr><td colspan="11">Lade Rechte-Matrix …</td></tr></tbody></table></div>' +
       '</div>';
 
     $('btnReloadRbac').addEventListener('click', loadRbacTable);
     await loadRbacTable();
+  }
+
+  function renderTabPermissionBox(idx, modKey, title, catalog, currentVal) {
+    const isAll = !Array.isArray(currentVal);
+    const list = Array.isArray(currentVal) ? currentVal : catalog.map(t => t.id);
+    return '<div class="rbac-tabs-box" data-tabmod="' + esc(modKey) + '">' +
+      '<div class="rbac-tabs-box-head">' +
+        '<b>' + esc(title) + '</b>' +
+        '<label style="font-size:11.5px;color:var(--os-cream);display:inline-flex;align-items:center;gap:6px;cursor:pointer;">' +
+          '<input type="checkbox" class="rbac-tab-all" data-idx="' + idx + '" data-tabmod="' + esc(modKey) + '"' + (isAll ? ' checked' : '') + '> Gesamtfreigabe (Alle Tabs)' +
+        '</label>' +
+      '</div>' +
+      '<div class="rbac-tab-chips' + (isAll ? ' disabled' : '') + '">' +
+        catalog.map(t =>
+          '<label class="rbac-tab-chip">' +
+            '<input type="checkbox" class="rbac-tab-item" data-tabmod="' + esc(modKey) + '" value="' + esc(t.id) + '"' + (list.indexOf(t.id) !== -1 ? ' checked' : '') + '>' +
+            '<span>' + esc(t.label) + '</span>' +
+          '</label>'
+        ).join('') +
+      '</div>' +
+    '</div>';
   }
 
   async function loadRbacTable() {
@@ -382,12 +429,16 @@
         return;
       }
       STATE.rbacEntries = res.entries || [];
+      STATE.tabCatalog = res.tabCatalog || { rezeptur: [], einkauf: [], operations: [] };
       const allLocations = (Array.isArray(res.locations) && res.locations.length)
         ? res.locations
         : window.SONA_OS_DEFAULTS.LOCATIONS;
+
       tbody.innerHTML = STATE.rbacEntries.map((u, idx) => {
         const locs = u.allowedLocations || [];
-        return '<tr data-idx="' + idx + '" data-uid="' + esc(u.userId) + '">' +
+        const tp = u.tabPermissions || { rezeptur: 'ALL', einkauf: 'ALL', operations: 'ALL' };
+        const isPartial = Array.isArray(tp.rezeptur) || Array.isArray(tp.einkauf) || Array.isArray(tp.operations);
+        return '<tr class="rbac-main-row" data-idx="' + idx + '" data-uid="' + esc(u.userId) + '">' +
           '<td><b>' + esc(u.displayName) + '</b><div style="font-size:10.5px;color:var(--os-silk);">' + esc(u.userId) + (u.active ? '' : ' · DEAKTIVIERT') + '</div></td>' +
           '<td>' + esc(u.role) + '</td>' +
           '<td class="chk-cell"><input type="checkbox" class="rbac-mod" data-mod="einkauf"' + (u.modules.einkauf ? ' checked' : '') + '></td>' +
@@ -400,13 +451,37 @@
               '<label title="' + esc(l.name) + '"><input type="checkbox" class="rbac-loc" value="' + esc(l.id) + '"' + (locs.indexOf(l.id) !== -1 ? ' checked' : '') + '> ' + esc(l.id) + '</label>'
             ).join('') +
           '</div></td>' +
-          '<td><select class="input-control rbac-level" style="height:30px;min-width:92px;">' +
+          '<td><select class="input-control rbac-level" style="height:30px;min-width:86px;">' +
             ['READ', 'WRITE', 'ADMIN'].map(lvl => '<option value="' + lvl + '"' + (u.accessLevel === lvl ? ' selected' : '') + '>' + lvl + '</option>').join('') +
           '</select></td>' +
-          '<td><span class="badge ' + (u.source === 'CUSTOM_MATRIX' ? 'badge-ok' : '') + '">' + esc(u.source === 'CUSTOM_MATRIX' ? 'Individuell' : 'Standard') + '</span></td>' +
+          '<td><button type="button" class="btn btn-sm rbac-tabs-toggle" data-idx="' + idx + '">' + (isPartial ? 'Teilzugriff ▾' : 'Alle Tabs ▾') + '</button></td>' +
           '<td><button type="button" class="btn btn-primary btn-sm rbac-save-btn">Speichern</button></td>' +
+        '</tr>' +
+        '<tr class="rbac-tabs-row hidden" data-tabs-for="' + idx + '">' +
+          '<td colspan="11">' +
+            '<div class="rbac-tabs-grid">' +
+              renderTabPermissionBox(idx, 'rezeptur', 'Rezepturen – Tab-Freigaben', STATE.tabCatalog.rezeptur || [], tp.rezeptur) +
+              renderTabPermissionBox(idx, 'einkauf', 'Einkauf – Tab-Freigaben', STATE.tabCatalog.einkauf || [], tp.einkauf) +
+              renderTabPermissionBox(idx, 'operations', 'Operations – Schwund & Bruch', STATE.tabCatalog.operations || [], tp.operations) +
+            '</div>' +
+          '</td>' +
         '</tr>';
       }).join('');
+
+      tbody.querySelectorAll('.rbac-tabs-toggle').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const detailRow = tbody.querySelector('tr.rbac-tabs-row[data-tabs-for="' + btn.dataset.idx + '"]');
+          if (detailRow) detailRow.classList.toggle('hidden');
+        });
+      });
+
+      tbody.querySelectorAll('.rbac-tab-all').forEach(chk => {
+        chk.addEventListener('change', () => {
+          const box = chk.closest('.rbac-tabs-box');
+          const chips = box && box.querySelector('.rbac-tab-chips');
+          if (chips) chips.classList.toggle('disabled', chk.checked);
+        });
+      });
 
       tbody.querySelectorAll('.rbac-save-btn').forEach(btn => {
         btn.addEventListener('click', () => saveRbacRow(btn.closest('tr')));
@@ -435,8 +510,25 @@
     const adminMatrix = tr.querySelector('.rbac-admin').checked;
     const accessLevel = tr.querySelector('.rbac-level').value;
 
+    const tabPermissions = { rezeptur: 'ALL', einkauf: 'ALL', operations: 'ALL' };
+    const detailRow = document.querySelector('#rbacBody tr.rbac-tabs-row[data-tabs-for="' + idx + '"]');
+    if (detailRow) {
+      ['rezeptur', 'einkauf', 'operations'].forEach(modKey => {
+        const box = detailRow.querySelector('.rbac-tabs-box[data-tabmod="' + modKey + '"]');
+        if (!box) return;
+        const allChk = box.querySelector('.rbac-tab-all');
+        if (allChk && allChk.checked) {
+          tabPermissions[modKey] = 'ALL';
+        } else {
+          const picked = [];
+          box.querySelectorAll('.rbac-tab-item:checked').forEach(c => picked.push(c.value));
+          tabPermissions[modKey] = picked;
+        }
+      });
+    }
+
     if (!allowedLocations.length) {
-      showToast('Mindestens ein Standort (001 oder 002) muss aktiviert sein.');
+      showToast('Mindestens ein Standort muss aktiviert sein.');
       return;
     }
 
@@ -452,7 +544,8 @@
         modules: modules,
         adminMatrix: adminMatrix,
         allowedLocations: allowedLocations,
-        accessLevel: accessLevel
+        accessLevel: accessLevel,
+        tabPermissions: tabPermissions
       });
       if (!res || !res.success) {
         showToast('Fehler: ' + ((res && res.error) || 'Speichern fehlgeschlagen'));
@@ -516,6 +609,15 @@
     });
 
     const handleNavClick = ev => {
+      const groupBtn = ev.target.closest('button[data-toggle-pillar]');
+      if (groupBtn) {
+        const pillarId = groupBtn.dataset.togglePillar;
+        const grpEl = groupBtn.closest('.os-nav-group');
+        const nextOpen = !(grpEl && grpEl.classList.contains('open'));
+        STATE.openPillars[pillarId] = nextOpen;
+        if (grpEl) grpEl.classList.toggle('open', nextOpen);
+        return;
+      }
       const btn = ev.target.closest('button[data-view]');
       if (!btn) return;
       STATE.activeView = btn.dataset.view;
@@ -523,6 +625,33 @@
     };
     $('osNavList').addEventListener('click', handleNavClick);
     $('osMobileNav').addEventListener('click', handleNavClick);
+
+    const applySidebarCollapsed = collapsed => {
+      STATE.sidebarCollapsed = !!collapsed;
+      const shell = $('osAppShell');
+      const toggleBtn = $('btnToggleSidebar');
+      if (shell) shell.classList.toggle('sidebar-collapsed', STATE.sidebarCollapsed);
+      if (toggleBtn) toggleBtn.textContent = STATE.sidebarCollapsed ? '›' : '‹';
+      try { localStorage.setItem('sona_os_sidebar_collapsed', STATE.sidebarCollapsed ? '1' : '0'); } catch (e) {}
+    };
+
+    try {
+      if (localStorage.getItem('sona_os_sidebar_collapsed') === '1') {
+        applySidebarCollapsed(true);
+      }
+    } catch (e) {}
+
+    const btnToggle = $('btnToggleSidebar');
+    if (btnToggle) {
+      btnToggle.addEventListener('click', () => applySidebarCollapsed(!STATE.sidebarCollapsed));
+    }
+    const btnBrandHome = $('btnBrandHome');
+    if (btnBrandHome) {
+      btnBrandHome.addEventListener('click', () => {
+        STATE.activeView = 'overview';
+        renderActiveView();
+      });
+    }
 
     $('globalLocationSelect').addEventListener('change', async ev => {
       const targetLoc = ev.target.value;
