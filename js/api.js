@@ -138,6 +138,7 @@
     getRbacMatrix: () => callPost('os_rbac_list', {}),
     saveRbacRule: (rule) => callPost('os_rbac_save', { rule: rule }),
     saveUser: (user) => callPost('os_user_save', { user: user }),
+    deleteUser: (userId) => callPost('os_user_delete', { userId: userId }),
     getBestandDashboard: (standortId, filter, forceRefresh) => callPost('os_bestand_dashboard', {
       standortId: standortId,
       filter: filter || {},

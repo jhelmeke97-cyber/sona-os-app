@@ -38,11 +38,13 @@
   <main id="lockScreen" class="lock-screen">
     <section class="lock-card" aria-label="SONA OS Anmeldung">
       <div class="lock-brand">
-        <img src="./assets/sona-logo.jpg" alt="SONA Logo">
-        <div>
-          <div class="kicker">SONA Leipzig · Ökosystem</div>
-          <h1>SONA OS Zugang</h1>
+        <div class="lock-logo-stage">
+          <div class="lock-logo-aura"></div>
+          <img src="./assets/sona-logo.jpg" alt="SONA Logo">
         </div>
+        <h1>SONA OS</h1>
+        <div class="lock-tagline">TASTE THE PASSION · LEIPZIG</div>
+        <div class="lock-hairline"></div>
       </div>
 
       <div class="auth-tabs" role="tablist">
@@ -74,10 +76,7 @@
           </label>
         </div>
 
-        <button type="button" id="btnLoginSubmit" class="btn btn-primary" style="width:100%;height:42px;">Anmelden</button>
-        <div class="kicker" style="margin-top:10px;line-height:1.45;text-transform:none;letter-spacing:0.02em;">
-          Neu bei SONA OS? Reiche über <b>Zugang anfragen</b> deine Gmail-Adresse ein – nach individueller Freigabe erhältst du dein Einmal-Passwort per E-Mail.
-        </div>
+        <button type="button" id="btnLoginSubmit" class="btn btn-primary lock-submit-btn">Anmelden</button>
       </div>
 
       <div id="registerFormPane" class="hidden">
@@ -115,8 +114,8 @@
       </div>
 
       <div class="lock-footer">
-        <span class="kicker">GitHub-Pages PWA</span>
-        <button type="button" id="btnOpenGatewaySettings" class="btn btn-sm">Gateway-URL</button>
+        <span class="lock-footer-brand">SONA Leipzig</span>
+        <button type="button" id="btnOpenGatewaySettings" class="lock-footer-link">Verbindung</button>
       </div>
     </section>
   </main>

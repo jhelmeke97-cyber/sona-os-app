@@ -1087,6 +1087,9 @@
           '<td><div class="rbac-action-btns">' +
             '<button type="button" class="btn btn-sm rbac-edit-user-btn" data-idx="' + idx + '">Profil</button>' +
             '<button type="button" class="btn btn-primary btn-sm rbac-save-btn">Speichern</button>' +
+            ((STATE.session && STATE.session.user && u.userId !== STATE.session.user.id)
+              ? '<button type="button" class="btn btn-sm rbac-delete-user-btn" data-idx="' + idx + '" style="color:#f87171;border-color:rgba(248,113,113,0.35);">Löschen</button>'
+              : '') +
           '</div></td>' +
         '</tr>' +
         '<tr class="rbac-tabs-row hidden" data-tabs-for="' + idx + '">' +
@@ -1094,7 +1097,7 @@
             '<div class="rbac-tabs-grid">' +
               renderTabPermissionBox(idx, 'rezeptur', 'Rezepturen – Tab-Freigaben', STATE.tabCatalog.rezeptur || [], tp.rezeptur) +
               renderTabPermissionBox(idx, 'einkauf', 'Einkauf – Tab-Freigaben', STATE.tabCatalog.einkauf || [], tp.einkauf) +
-              renderTabPermissionBox(idx, 'operations', 'Operations – Schwund & Bruch', STATE.tabCatalog.operations || [], tp.operations) +
+              renderTabPermissionBox(idx, 'operations', 'Operations – Tab-Freigaben', STATE.tabCatalog.operations || [], tp.operations) +
             '</div>' +
           '</td>' +
         '</tr>';
@@ -1118,6 +1121,32 @@
 
       tbody.querySelectorAll('.rbac-save-btn').forEach(btn => {
         btn.addEventListener('click', () => saveRbacRow(btn.closest('tr')));
+      });
+
+      tbody.querySelectorAll('.rbac-delete-user-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const entry = STATE.rbacEntries[parseInt(btn.dataset.idx, 10)];
+          if (!entry) return;
+          if (!window.confirm('Profil „' + (entry.displayName || entry.email || entry.userId) + '“ wirklich dauerhaft löschen?')) {
+            return;
+          }
+          btn.disabled = true;
+          btn.textContent = 'Löscht…';
+          try {
+            const delRes = await window.SonaApi.deleteUser(entry.userId);
+            if (!delRes || !delRes.success) {
+              showToast((delRes && delRes.error) || 'Löschen fehlgeschlagen.');
+              return;
+            }
+            showToast('Profil ' + (entry.displayName || entry.userId) + ' gelöscht.');
+            await loadRbacTable();
+          } catch (eDel) {
+            showToast('Verbindungsfehler: ' + (eDel && eDel.message ? eDel.message : String(eDel)));
+          } finally {
+            btn.disabled = false;
+            btn.textContent = 'Löschen';
+          }
+        });
       });
     } catch (err) {
       tbody.innerHTML = '<tr><td colspan="12">Fehler: ' + esc(err.message) + '</td></tr>';
@@ -1305,7 +1334,7 @@
         errEl.textContent = msg;
         errEl.classList.remove('hidden');
         try { errEl.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch (eScroll) {}
-        toast(msg);
+        showToast(msg);
       } else {
         errEl.textContent = '';
         errEl.classList.add('hidden');
@@ -1392,7 +1421,11 @@
           emailError: res.emailError
         };
       }
-      showToast('Mitarbeiter ' + res.user.displayName + ' gespeichert.');
+      if (res.oneTimePassword && !res.emailSent) {
+        showToast('Mitarbeiter gespeichert – E-Mail-Versand fehlgeschlagen (' + (res.emailError || 'siehe Banner') + ').');
+      } else {
+        showToast('Mitarbeiter ' + res.user.displayName + ' gespeichert.');
+      }
       if (STATE.session && STATE.session.user && res.userId === STATE.session.user.id) {
         const refreshed = await window.SonaApi.checkSession();
         if (refreshed && refreshed.success) {
