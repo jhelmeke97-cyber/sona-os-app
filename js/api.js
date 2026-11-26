@@ -98,11 +98,21 @@
     callPost: callPost,
     ping: () => callPost('os_ping', {}),
     listUsers: () => callPost('os_users', {}),
-    login: (userId, pin, standortId) => callPost('os_login', { userId: userId, pin: pin, standortId: standortId }),
+    login: (email, password, standortId) => callPost('os_login', {
+      email: email,
+      password: password,
+      standortId: standortId || ''
+    }),
+    registerRequest: (payload) => callPost('os_register_request', payload || {}),
+    changePassword: (currentPassword, newPassword) => callPost('os_change_password', {
+      currentPassword: currentPassword,
+      newPassword: newPassword
+    }),
     checkSession: () => callPost('os_session_check', {}),
     switchLocation: (standortId) => callPost('os_switch_location', { standortId: standortId }),
     getRbacMatrix: () => callPost('os_rbac_list', {}),
     saveRbacRule: (rule) => callPost('os_rbac_save', { rule: rule }),
+    saveUser: (user) => callPost('os_user_save', { user: user }),
     getBestandDashboard: (standortId, filter, forceRefresh) => callPost('os_bestand_dashboard', {
       standortId: standortId,
       filter: filter || {},

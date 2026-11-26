@@ -3,10 +3,16 @@
 (function() {
   const STATE = {
     session: null,
+    lastLoginSecret: '',
+    activeAuthTab: 'login',
     activeView: 'overview',
-    pinBuffer: '',
-    users: [],
     rbacEntries: [],
+    pendingRequests: [],
+    rbacLocations: [],
+    allowedRoles: ['ADMIN', 'FB_MANAGER', 'KUECHENCHEF', 'BARCHEF', 'SERVICELEITUNG', 'SERVICECHEF', 'ADMIN_VIEWER', 'VIEWER'],
+    allowedBereiche: ['ALLE', 'FOOD_SUSHI', 'BEVERAGE_DESSERT', 'KUECHE', 'BAR', 'SERVICE'],
+    adminNotificationEmail: 'j.helmeke97@gmail.com',
+    lastOtpResult: null,
     tabCatalog: { rezeptur: [], einkauf: [], operations: [] },
     openPillars: { WARENWIRTSCHAFT: false, CONTROLLING: false, OPERATIONS: false },
     sidebarCollapsed: false,
@@ -41,28 +47,47 @@
     }, 3400);
   }
 
-  function updatePinDots() {
-    const box = $('pinDots');
-    if (!box) return;
-    const len = STATE.pinBuffer.length;
-    const slots = Math.max(4, Math.min(8, len || 4));
-    let html = '';
-    for (let i = 0; i < slots; i++) {
-      html += '<span class="pin-dot' + (i < len ? ' filled' : '') + '"></span>';
+  function setAuthMessages(errorMsg, successMsg) {
+    const errEl = $('lockError');
+    const okEl = $('lockSuccess');
+    if (errEl) {
+      if (errorMsg) {
+        errEl.textContent = errorMsg;
+        errEl.classList.remove('hidden');
+      } else {
+        errEl.textContent = '';
+        errEl.classList.add('hidden');
+      }
     }
-    box.innerHTML = html;
+    if (okEl) {
+      if (successMsg) {
+        okEl.textContent = successMsg;
+        okEl.classList.remove('hidden');
+      } else {
+        okEl.textContent = '';
+        okEl.classList.add('hidden');
+      }
+    }
   }
 
-  function setLockError(msg) {
-    const el = $('lockError');
-    if (!el) return;
-    if (!msg) {
-      el.classList.add('hidden');
-      el.textContent = '';
-    } else {
-      el.textContent = msg;
-      el.classList.remove('hidden');
+  function switchAuthTab(tab) {
+    STATE.activeAuthTab = tab === 'register' ? 'register' : 'login';
+    const isReg = STATE.activeAuthTab === 'register';
+    const btnLogin = $('tabBtnLogin');
+    const btnReg = $('tabBtnRegister');
+    const paneLogin = $('loginFormPane');
+    const paneReg = $('registerFormPane');
+    if (btnLogin) {
+      btnLogin.classList.toggle('active', !isReg);
+      btnLogin.setAttribute('aria-selected', isReg ? 'false' : 'true');
     }
+    if (btnReg) {
+      btnReg.classList.toggle('active', isReg);
+      btnReg.setAttribute('aria-selected', isReg ? 'true' : 'false');
+    }
+    if (paneLogin) paneLogin.classList.toggle('hidden', isReg);
+    if (paneReg) paneReg.classList.toggle('hidden', !isReg);
+    setAuthMessages('', '');
   }
 
   function clearAllModuleCaches() {
@@ -75,81 +100,201 @@
   function lockApp(reasonMsg) {
     window.SonaApi.setToken('');
     STATE.session = null;
+    STATE.lastLoginSecret = '';
     STATE.rbacEntries = [];
-    STATE.pinBuffer = '';
+    STATE.pendingRequests = [];
+    STATE.lastOtpResult = null;
     clearAllModuleCaches();
-    updatePinDots();
     $('osAppShell').classList.add('hidden');
+    $('forcePasswordScreen').classList.add('hidden');
+    $('changePasswordModal').classList.add('hidden');
+    $('userProfileModal').classList.add('hidden');
     $('osNavList').innerHTML = '';
     $('osMobileNav').innerHTML = '';
     $('osMainContent').innerHTML = '';
+    if ($('loginPassword')) $('loginPassword').value = '';
+    if ($('forcePwCurrent')) $('forcePwCurrent').value = '';
+    if ($('forcePwNew')) $('forcePwNew').value = '';
+    if ($('forcePwConfirm')) $('forcePwConfirm').value = '';
     $('lockScreen').classList.remove('hidden');
-    setLockError(reasonMsg || '');
-    loadLockUsers();
+    switchAuthTab('login');
+    setAuthMessages(reasonMsg || '', '');
+    loadPublicMeta();
   }
 
-  async function loadLockUsers() {
-    const sel = $('lockUserSelect');
-    const locSel = $('lockLocationSelect');
-    if (locSel) {
-      locSel.innerHTML = window.SONA_OS_DEFAULTS.LOCATIONS.map(l =>
+  async function loadPublicMeta() {
+    const locSel = $('regLocation');
+    const renderLocOptions = locs => {
+      if (!locSel) return;
+      locSel.innerHTML = (locs || window.SONA_OS_DEFAULTS.LOCATIONS).map(l =>
         '<option value="' + esc(l.id) + '">' + esc(l.name) + ' (' + esc(l.id) + ')</option>'
       ).join('');
-    }
+    };
+    renderLocOptions(window.SONA_OS_DEFAULTS.LOCATIONS);
     try {
       const res = await window.SonaApi.listUsers();
-      if (!res || !res.success) {
-        throw new Error((res && res.error) || 'Benutzerliste konnte nicht geladen werden.');
-      }
-      STATE.users = res.users || [];
-      if (locSel && Array.isArray(res.locations) && res.locations.length) {
-        locSel.innerHTML = res.locations.map(l =>
-          '<option value="' + esc(l.id) + '">' + esc(l.name) + ' (' + esc(l.id) + ')</option>'
-        ).join('');
-      }
-      if (sel) {
-        sel.innerHTML = STATE.users.length
-          ? STATE.users.map(u => '<option value="' + esc(u.id) + '">' + esc(u.name) + ' (' + esc(u.role) + ')</option>').join('')
-          : '<option value="">Keine aktiven Benutzer gefunden</option>';
+      if (res && res.success && Array.isArray(res.locations) && res.locations.length) {
+        renderLocOptions(res.locations);
       }
     } catch (err) {
-      setLockError('Gateway-Verbindung fehlgeschlagen: ' + (err && err.message ? err.message : String(err)));
+      // Fallback-Standorte bleiben aktiv; Verbindungsfehler werden beim Submit angezeigt
     }
+  }
+
+  function showForcePasswordScreen() {
+    const s = STATE.session;
+    if (!s || !s.user) {
+      lockApp();
+      return;
+    }
+    $('lockScreen').classList.add('hidden');
+    $('osAppShell').classList.add('hidden');
+    const lbl = $('forcePwUserLabel');
+    if (lbl) {
+      lbl.textContent = s.user.name + (s.user.email ? ' · ' + s.user.email : '');
+    }
+    if ($('forcePwError')) {
+      $('forcePwError').textContent = '';
+      $('forcePwError').classList.add('hidden');
+    }
+    if ($('forcePwCurrent')) $('forcePwCurrent').value = STATE.lastLoginSecret || '';
+    if ($('forcePwNew')) $('forcePwNew').value = '';
+    if ($('forcePwConfirm')) $('forcePwConfirm').value = '';
+    $('forcePasswordScreen').classList.remove('hidden');
   }
 
   async function submitLogin() {
-    const userId = ($('lockUserSelect') && $('lockUserSelect').value) || '';
-    const standortId = ($('lockLocationSelect') && $('lockLocationSelect').value) || '001';
-    const pin = STATE.pinBuffer;
+    const email = ($('loginEmail') && $('loginEmail').value || '').trim().toLowerCase();
+    const password = ($('loginPassword') && $('loginPassword').value || '').trim();
 
-    if (!userId) {
-      setLockError('Bitte Benutzer auswählen.');
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setAuthMessages('Bitte gültige Gmail / E-Mail-Adresse eingeben.', '');
       return;
     }
-    if (!pin) {
-      setLockError('Bitte PIN eingeben.');
+    if (!password) {
+      setAuthMessages('Bitte Passwort oder Einmal-Passwort eingeben.', '');
       return;
     }
 
-    setLockError('');
+    setAuthMessages('', '');
     window.SonaLoader.show(0);
     try {
-      const res = await window.SonaApi.login(userId, pin, standortId);
+      const res = await window.SonaApi.login(email, password, '');
       if (!res || !res.success || !res.token) {
-        STATE.pinBuffer = '';
-        updatePinDots();
-        setLockError((res && res.error) || 'Anmeldung fehlgeschlagen.');
+        if ($('loginPassword')) $('loginPassword').value = '';
+        setAuthMessages((res && res.error) || 'Anmeldung fehlgeschlagen.', '');
         return;
       }
       window.SonaApi.setToken(res.token);
       STATE.session = res;
-      STATE.pinBuffer = '';
+      if ($('loginPassword')) $('loginPassword').value = '';
+      if (res.mustChangePassword) {
+        STATE.lastLoginSecret = password;
+        showForcePasswordScreen();
+        return;
+      }
+      STATE.lastLoginSecret = '';
       STATE.activeView = 'overview';
       renderAuthenticatedShell();
     } catch (err) {
-      STATE.pinBuffer = '';
-      updatePinDots();
-      setLockError('Verbindungsfehler: ' + (err && err.message ? err.message : String(err)));
+      if ($('loginPassword')) $('loginPassword').value = '';
+      setAuthMessages('Verbindungsfehler: ' + (err && err.message ? err.message : String(err)), '');
+    } finally {
+      window.SonaLoader.hide();
+    }
+  }
+
+  async function submitRegisterRequest() {
+    const name = ($('regName') && $('regName').value || '').trim();
+    const email = ($('regEmail') && $('regEmail').value || '').trim().toLowerCase();
+    const standortId = ($('regLocation') && $('regLocation').value) || '001';
+    const bereich = ($('regBereich') && $('regBereich').value) || 'ALLE';
+    const note = ($('regNote') && $('regNote').value || '').trim();
+
+    if (name.length < 2) {
+      setAuthMessages('Bitte vollständigen Namen eingeben (mind. 2 Zeichen).', '');
+      return;
+    }
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setAuthMessages('Bitte gültige Gmail / E-Mail-Adresse eingeben.', '');
+      return;
+    }
+
+    setAuthMessages('', '');
+    window.SonaLoader.show(0);
+    try {
+      const res = await window.SonaApi.registerRequest({
+        name: name,
+        email: email,
+        standortId: standortId,
+        bereich: bereich,
+        note: note
+      });
+      if (!res || !res.success) {
+        setAuthMessages((res && res.error) || 'Anfrage konnte nicht gesendet werden.', '');
+        return;
+      }
+      if ($('regName')) $('regName').value = '';
+      if ($('regEmail')) $('regEmail').value = '';
+      if ($('regNote')) $('regNote').value = '';
+      const extraInfo = res.notifiedAdmin ? ' Die Administration wurde per E-Mail benachrichtigt.' : '';
+      setAuthMessages('', (res.message || 'Zugangs-Anfrage gesendet.') + extraInfo);
+    } catch (err) {
+      setAuthMessages('Verbindungsfehler: ' + (err && err.message ? err.message : String(err)), '');
+    } finally {
+      window.SonaLoader.hide();
+    }
+  }
+
+  async function submitForcePasswordChange() {
+    const curPw = ($('forcePwCurrent') && $('forcePwCurrent').value || '').trim();
+    const newPw = ($('forcePwNew') && $('forcePwNew').value || '').trim();
+    const confirmPw = ($('forcePwConfirm') && $('forcePwConfirm').value || '').trim();
+    const errEl = $('forcePwError');
+    const showForceErr = msg => {
+      if (!errEl) return;
+      if (msg) {
+        errEl.textContent = msg;
+        errEl.classList.remove('hidden');
+      } else {
+        errEl.textContent = '';
+        errEl.classList.add('hidden');
+      }
+    };
+
+    if (!curPw) {
+      showForceErr('Bitte aktuelles Passwort / Einmal-Passwort eingeben.');
+      return;
+    }
+    if (newPw.length < 6 || newPw.length > 64) {
+      showForceErr('Das neue Passwort muss zwischen 6 und 64 Zeichen lang sein.');
+      return;
+    }
+    if (newPw !== confirmPw) {
+      showForceErr('Die beiden neuen Passwörter stimmen nicht überein.');
+      return;
+    }
+
+    showForceErr('');
+    window.SonaLoader.show(0);
+    try {
+      const res = await window.SonaApi.changePassword(curPw, newPw);
+      if (!res || !res.success || !res.token) {
+        showForceErr((res && res.error) || 'Passwort konnte nicht gespeichert werden.');
+        return;
+      }
+      window.SonaApi.setToken(res.token);
+      STATE.session = res;
+      STATE.lastLoginSecret = '';
+      if ($('forcePwCurrent')) $('forcePwCurrent').value = '';
+      if ($('forcePwNew')) $('forcePwNew').value = '';
+      if ($('forcePwConfirm')) $('forcePwConfirm').value = '';
+      $('forcePasswordScreen').classList.add('hidden');
+      STATE.activeView = 'overview';
+      renderAuthenticatedShell();
+      showToast('Persönliches Passwort gespeichert. Willkommen im SONA OS!');
+    } catch (err) {
+      showForceErr('Verbindungsfehler: ' + (err && err.message ? err.message : String(err)));
     } finally {
       window.SonaLoader.hide();
     }
@@ -379,32 +524,14 @@
       '</div>';
   }
 
-  async function renderRbacMatrixView() {
-    const container = $('osMainContent');
-    container.innerHTML =
-      '<div class="card">' +
-        '<div class="card-head">' +
-          '<div><div class="kicker">Administration</div><h3>Mitarbeiter- &amp; Tab-Rechte-Matrix</h3></div>' +
-          '<button type="button" class="btn btn-sm" id="btnReloadRbac">Aktualisieren</button>' +
-        '</div>' +
-        '<p class="module-desc" style="margin-bottom:14px;">Steuere pro Mitarbeiter die Hauptmodule, Standorte, Zugriffsstufe und über <b>Tabs ▾</b> die feingranularen Tab-Freigaben (Gesamtfreigabe oder Teilzugriff für Rezepturen &amp; Einkauf).</p>' +
-        '<div class="table-wrap"><table id="rbacTable"><thead><tr>' +
-          '<th>Benutzer</th><th>Rolle</th><th>Einkauf</th><th>Rezepturen</th><th>Controlling</th><th>Bestand</th><th>Admin</th><th>Standorte</th><th>Stufe</th><th>Tab-Details</th><th>Aktion</th>' +
-        '</tr></thead><tbody id="rbacBody"><tr><td colspan="11">Lade Rechte-Matrix …</td></tr></tbody></table></div>' +
-      '</div>';
-
-    $('btnReloadRbac').addEventListener('click', loadRbacTable);
-    await loadRbacTable();
-  }
-
-  function renderTabPermissionBox(idx, modKey, title, catalog, currentVal) {
+  function renderTabPermissionBox(prefix, modKey, title, catalog, currentVal) {
     const isAll = !Array.isArray(currentVal);
     const list = Array.isArray(currentVal) ? currentVal : catalog.map(t => t.id);
     return '<div class="rbac-tabs-box" data-tabmod="' + esc(modKey) + '">' +
       '<div class="rbac-tabs-box-head">' +
         '<b>' + esc(title) + '</b>' +
         '<label style="font-size:11.5px;color:var(--os-cream);display:inline-flex;align-items:center;gap:6px;cursor:pointer;">' +
-          '<input type="checkbox" class="rbac-tab-all" data-idx="' + idx + '" data-tabmod="' + esc(modKey) + '"' + (isAll ? ' checked' : '') + '> Gesamtfreigabe (Alle Tabs)' +
+          '<input type="checkbox" class="rbac-tab-all" data-idx="' + esc(prefix) + '" data-tabmod="' + esc(modKey) + '"' + (isAll ? ' checked' : '') + '> Gesamtfreigabe (Alle Tabs)' +
         '</label>' +
       '</div>' +
       '<div class="rbac-tab-chips' + (isAll ? ' disabled' : '') + '">' +
@@ -418,6 +545,190 @@
     '</div>';
   }
 
+  function wireTabBoxToggleEvents(rootEl) {
+    if (!rootEl) return;
+    rootEl.querySelectorAll('.rbac-tab-all').forEach(chk => {
+      chk.addEventListener('change', () => {
+        const box = chk.closest('.rbac-tabs-box');
+        const chips = box && box.querySelector('.rbac-tab-chips');
+        if (chips) chips.classList.toggle('disabled', chk.checked);
+      });
+    });
+  }
+
+  function readTabPermissionsFromContainer(containerEl) {
+    const tabPermissions = { rezeptur: 'ALL', einkauf: 'ALL', operations: 'ALL' };
+    if (!containerEl) return tabPermissions;
+    ['rezeptur', 'einkauf', 'operations'].forEach(modKey => {
+      const box = containerEl.querySelector('.rbac-tabs-box[data-tabmod="' + modKey + '"]');
+      if (!box) return;
+      const allChk = box.querySelector('.rbac-tab-all');
+      if (allChk && allChk.checked) {
+        tabPermissions[modKey] = 'ALL';
+      } else {
+        const picked = [];
+        box.querySelectorAll('.rbac-tab-item:checked').forEach(c => picked.push(c.value));
+        tabPermissions[modKey] = picked;
+      }
+    });
+    return tabPermissions;
+  }
+
+  function renderOtpResultBanner() {
+    const slot = $('otpResultBanner');
+    if (!slot) return;
+    const otp = STATE.lastOtpResult;
+    if (!otp || !otp.password) {
+      slot.innerHTML = '';
+      slot.classList.add('hidden');
+      return;
+    }
+    const mailNote = otp.emailSent
+      ? 'E-Mail mit Einmal-Passwort wurde erfolgreich an ' + otp.email + ' gesendet.'
+      : 'Hinweis: Automatischer E-Mail-Versand nicht möglich' + (otp.emailError ? ' (' + otp.emailError + ')' : '') + ' – bitte Einmal-Passwort manuell weitergeben.';
+
+    slot.classList.remove('hidden');
+    slot.innerHTML =
+      '<div class="otp-banner">' +
+        '<div>' +
+          '<div class="kicker" style="color:var(--os-green);">Einmal-Passwort aktiv · ' + esc(otp.displayName) + '</div>' +
+          '<div style="margin:6px 0;">Einmal-Passwort: <span class="otp-code-pill">' + esc(otp.password) + '</span></div>' +
+          '<div style="font-size:11.5px;color:var(--os-silk);">' + esc(mailNote) + '</div>' +
+        '</div>' +
+        '<div style="display:flex;gap:8px;align-items:center;">' +
+          '<button type="button" class="btn btn-sm" id="btnCopyOtpBanner">Kopieren</button>' +
+          '<button type="button" class="btn btn-sm" id="btnCloseOtpBanner">Schließen</button>' +
+        '</div>' +
+      '</div>';
+
+    const copyBtn = $('btnCopyOtpBanner');
+    if (copyBtn) {
+      copyBtn.addEventListener('click', () => {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(otp.password).then(() => showToast('Einmal-Passwort kopiert.')).catch(() => {});
+        } else {
+          showToast('Einmal-Passwort: ' + otp.password);
+        }
+      });
+    }
+    const closeBtn = $('btnCloseOtpBanner');
+    if (closeBtn) {
+      closeBtn.addEventListener('click', () => {
+        STATE.lastOtpResult = null;
+        renderOtpResultBanner();
+      });
+    }
+  }
+
+  function renderPendingRequestsSection() {
+    const slot = $('pendingRequestsSection');
+    if (!slot) return;
+    const reqs = STATE.pendingRequests || [];
+    if (!reqs.length) {
+      slot.innerHTML = '';
+      slot.classList.add('hidden');
+      return;
+    }
+
+    slot.classList.remove('hidden');
+    slot.innerHTML =
+      '<div class="card" style="margin-bottom:16px;">' +
+        '<div class="card-head">' +
+          '<div>' +
+            '<div class="kicker">Onboarding · Neue Anfragen</div>' +
+            '<h3>Offene Zugangs-Anfragen (' + esc(reqs.length) + ')</h3>' +
+          '</div>' +
+          '<span class="badge badge-warn">Freigabe ausstehend</span>' +
+        '</div>' +
+        '<div class="pending-list">' +
+          reqs.map((r, idx) =>
+            '<div class="pending-item">' +
+              '<div>' +
+                '<div><b>' + esc(r.displayName) + '</b> <span class="rbac-user-email">(' + esc(r.email) + ')</span></div>' +
+                '<div style="font-size:11.5px;color:var(--os-silk);margin-top:3px;">' +
+                  'Standort-Wunsch: <b>' + esc(r.requestedLocation || '001') + '</b> · Bereich: <b>' + esc(r.bereich || 'ALLE') + '</b>' +
+                  (r.note ? ' · Notiz: ' + esc(r.note) : '') +
+                '</div>' +
+              '</div>' +
+              '<div class="rbac-action-btns">' +
+                '<button type="button" class="btn btn-primary btn-sm pending-approve-btn" data-idx="' + idx + '">Konfigurieren &amp; Freigeben</button>' +
+                '<button type="button" class="btn btn-sm pending-reject-btn" data-idx="' + idx + '">Ablehnen</button>' +
+              '</div>' +
+            '</div>'
+          ).join('') +
+        '</div>' +
+      '</div>';
+
+    slot.querySelectorAll('.pending-approve-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const entry = STATE.pendingRequests[parseInt(btn.dataset.idx, 10)];
+        if (entry) openUserProfileModal('approve', entry);
+      });
+    });
+
+    slot.querySelectorAll('.pending-reject-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const entry = STATE.pendingRequests[parseInt(btn.dataset.idx, 10)];
+        if (entry) rejectPendingUser(entry);
+      });
+    });
+  }
+
+  async function rejectPendingUser(entry) {
+    window.SonaLoader.show(600);
+    try {
+      const res = await window.SonaApi.saveUser({
+        userId: entry.userId,
+        name: entry.displayName,
+        email: entry.email,
+        role: entry.role || 'VIEWER',
+        bereich: entry.bereich || 'ALLE',
+        status: 'REJECTED',
+        note: entry.note || '',
+        sendInviteEmail: false
+      });
+      if (!res || !res.success) {
+        showToast('Fehler: ' + ((res && res.error) || 'Ablehnung fehlgeschlagen'));
+        return;
+      }
+      showToast('Anfrage von ' + entry.displayName + ' abgelehnt.');
+      await loadRbacTable();
+    } catch (err) {
+      showToast('Fehler: ' + err.message);
+    } finally {
+      window.SonaLoader.hide();
+    }
+  }
+
+  async function renderRbacMatrixView() {
+    const container = $('osMainContent');
+    container.innerHTML =
+      '<div id="otpResultBanner" class="hidden"></div>' +
+      '<div id="pendingRequestsSection" class="hidden"></div>' +
+      '<div class="card">' +
+        '<div class="card-head">' +
+          '<div>' +
+            '<div class="kicker">Administration</div>' +
+            '<h3>Mitarbeiter- &amp; Tab-Rechte-Matrix</h3>' +
+          '</div>' +
+          '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">' +
+            '<span class="badge" title="Benachrichtigungs-Adresse für neue Anfragen">Anfragen → <span id="rbacNotifyEmailLabel">' + esc(STATE.adminNotificationEmail) + '</span></span>' +
+            '<button type="button" class="btn btn-primary btn-sm" id="btnNewRbacUser">+ Neuer Mitarbeiter</button>' +
+            '<button type="button" class="btn btn-sm" id="btnReloadRbac">Aktualisieren</button>' +
+          '</div>' +
+        '</div>' +
+        '<p class="module-desc" style="margin-bottom:14px;">Steuere pro Mitarbeiter und Gmail-Konto die Hauptmodule (inkl. Operations), Standorte, Zugriffsstufe und über <b>Tabs ▾</b> die feingranularen Tab-Freigaben.</p>' +
+        '<div class="table-wrap"><table id="rbacTable"><thead><tr>' +
+          '<th>Benutzer</th><th>Rolle</th><th>Einkauf</th><th>Rezepturen</th><th>Controlling</th><th>Bestand</th><th>Operations</th><th>Admin</th><th>Standorte</th><th>Stufe</th><th>Tab-Details</th><th>Aktion</th>' +
+        '</tr></thead><tbody id="rbacBody"><tr><td colspan="12">Lade Rechte-Matrix …</td></tr></tbody></table></div>' +
+      '</div>';
+
+    $('btnNewRbacUser').addEventListener('click', () => openUserProfileModal('create', null));
+    $('btnReloadRbac').addEventListener('click', loadRbacTable);
+    renderOtpResultBanner();
+    await loadRbacTable();
+  }
+
   async function loadRbacTable() {
     const tbody = $('rbacBody');
     if (!tbody) return;
@@ -425,26 +736,47 @@
     try {
       const res = await window.SonaApi.getRbacMatrix();
       if (!res || !res.success) {
-        tbody.innerHTML = '<tr><td colspan="11">' + esc((res && res.error) || 'Fehler beim Laden.') + '</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="12">' + esc((res && res.error) || 'Fehler beim Laden.') + '</td></tr>';
         return;
       }
+      STATE.pendingRequests = res.pendingRequests || [];
       STATE.rbacEntries = res.entries || [];
       STATE.tabCatalog = res.tabCatalog || { rezeptur: [], einkauf: [], operations: [] };
-      const allLocations = (Array.isArray(res.locations) && res.locations.length)
+      STATE.rbacLocations = (Array.isArray(res.locations) && res.locations.length)
         ? res.locations
         : window.SONA_OS_DEFAULTS.LOCATIONS;
+      if (Array.isArray(res.allowedRoles) && res.allowedRoles.length) STATE.allowedRoles = res.allowedRoles;
+      if (Array.isArray(res.allowedBereiche) && res.allowedBereiche.length) STATE.allowedBereiche = res.allowedBereiche;
+      if (res.adminNotificationEmail) {
+        STATE.adminNotificationEmail = res.adminNotificationEmail;
+        const lbl = $('rbacNotifyEmailLabel');
+        if (lbl) lbl.textContent = res.adminNotificationEmail;
+      }
 
+      renderOtpResultBanner();
+      renderPendingRequestsSection();
+
+      const allLocations = STATE.rbacLocations;
       tbody.innerHTML = STATE.rbacEntries.map((u, idx) => {
         const locs = u.allowedLocations || [];
         const tp = u.tabPermissions || { rezeptur: 'ALL', einkauf: 'ALL', operations: 'ALL' };
         const isPartial = Array.isArray(tp.rezeptur) || Array.isArray(tp.einkauf) || Array.isArray(tp.operations);
+        const statusFlag = u.status && u.status !== 'ACTIVE'
+          ? ' · ' + esc(u.status)
+          : (u.mustChangePassword ? ' · EINMAL-PW AKTIV' : '');
+
         return '<tr class="rbac-main-row" data-idx="' + idx + '" data-uid="' + esc(u.userId) + '">' +
-          '<td><b>' + esc(u.displayName) + '</b><div style="font-size:10.5px;color:var(--os-silk);">' + esc(u.userId) + (u.active ? '' : ' · DEAKTIVIERT') + '</div></td>' +
-          '<td>' + esc(u.role) + '</td>' +
+          '<td>' +
+            '<b>' + esc(u.displayName) + '</b>' +
+            (u.email ? '<div class="rbac-user-email">' + esc(u.email) + '</div>' : '') +
+            '<div style="font-size:10.5px;color:var(--os-silk);">' + esc(u.userId) + statusFlag + '</div>' +
+          '</td>' +
+          '<td>' + esc(u.role) + '<div style="font-size:10px;color:var(--os-silk);">' + esc(u.bereich || '') + '</div></td>' +
           '<td class="chk-cell"><input type="checkbox" class="rbac-mod" data-mod="einkauf"' + (u.modules.einkauf ? ' checked' : '') + '></td>' +
           '<td class="chk-cell"><input type="checkbox" class="rbac-mod" data-mod="rezeptur"' + (u.modules.rezeptur ? ' checked' : '') + '></td>' +
           '<td class="chk-cell"><input type="checkbox" class="rbac-mod" data-mod="controlling"' + (u.modules.controlling ? ' checked' : '') + '></td>' +
           '<td class="chk-cell"><input type="checkbox" class="rbac-mod" data-mod="bestand"' + (u.modules.bestand ? ' checked' : '') + '></td>' +
+          '<td class="chk-cell"><input type="checkbox" class="rbac-mod" data-mod="operations"' + (u.modules.operations !== false ? ' checked' : '') + '></td>' +
           '<td class="chk-cell"><input type="checkbox" class="rbac-admin"' + (u.adminMatrix ? ' checked' : '') + '></td>' +
           '<td><div class="loc-chks">' +
             allLocations.map(l =>
@@ -455,10 +787,13 @@
             ['READ', 'WRITE', 'ADMIN'].map(lvl => '<option value="' + lvl + '"' + (u.accessLevel === lvl ? ' selected' : '') + '>' + lvl + '</option>').join('') +
           '</select></td>' +
           '<td><button type="button" class="btn btn-sm rbac-tabs-toggle" data-idx="' + idx + '">' + (isPartial ? 'Teilzugriff ▾' : 'Alle Tabs ▾') + '</button></td>' +
-          '<td><button type="button" class="btn btn-primary btn-sm rbac-save-btn">Speichern</button></td>' +
+          '<td><div class="rbac-action-btns">' +
+            '<button type="button" class="btn btn-sm rbac-edit-user-btn" data-idx="' + idx + '">Profil</button>' +
+            '<button type="button" class="btn btn-primary btn-sm rbac-save-btn">Speichern</button>' +
+          '</div></td>' +
         '</tr>' +
         '<tr class="rbac-tabs-row hidden" data-tabs-for="' + idx + '">' +
-          '<td colspan="11">' +
+          '<td colspan="12">' +
             '<div class="rbac-tabs-grid">' +
               renderTabPermissionBox(idx, 'rezeptur', 'Rezepturen – Tab-Freigaben', STATE.tabCatalog.rezeptur || [], tp.rezeptur) +
               renderTabPermissionBox(idx, 'einkauf', 'Einkauf – Tab-Freigaben', STATE.tabCatalog.einkauf || [], tp.einkauf) +
@@ -475,11 +810,12 @@
         });
       });
 
-      tbody.querySelectorAll('.rbac-tab-all').forEach(chk => {
-        chk.addEventListener('change', () => {
-          const box = chk.closest('.rbac-tabs-box');
-          const chips = box && box.querySelector('.rbac-tab-chips');
-          if (chips) chips.classList.toggle('disabled', chk.checked);
+      wireTabBoxToggleEvents(tbody);
+
+      tbody.querySelectorAll('.rbac-edit-user-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const entry = STATE.rbacEntries[parseInt(btn.dataset.idx, 10)];
+          if (entry) openUserProfileModal('edit', entry);
         });
       });
 
@@ -487,7 +823,7 @@
         btn.addEventListener('click', () => saveRbacRow(btn.closest('tr')));
       });
     } catch (err) {
-      tbody.innerHTML = '<tr><td colspan="11">Fehler: ' + esc(err.message) + '</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="12">Fehler: ' + esc(err.message) + '</td></tr>';
     } finally {
       window.SonaLoader.hide();
     }
@@ -509,23 +845,8 @@
     });
     const adminMatrix = tr.querySelector('.rbac-admin').checked;
     const accessLevel = tr.querySelector('.rbac-level').value;
-
-    const tabPermissions = { rezeptur: 'ALL', einkauf: 'ALL', operations: 'ALL' };
     const detailRow = document.querySelector('#rbacBody tr.rbac-tabs-row[data-tabs-for="' + idx + '"]');
-    if (detailRow) {
-      ['rezeptur', 'einkauf', 'operations'].forEach(modKey => {
-        const box = detailRow.querySelector('.rbac-tabs-box[data-tabmod="' + modKey + '"]');
-        if (!box) return;
-        const allChk = box.querySelector('.rbac-tab-all');
-        if (allChk && allChk.checked) {
-          tabPermissions[modKey] = 'ALL';
-        } else {
-          const picked = [];
-          box.querySelectorAll('.rbac-tab-item:checked').forEach(c => picked.push(c.value));
-          tabPermissions[modKey] = picked;
-        }
-      });
-    }
+    const tabPermissions = readTabPermissionsFromContainer(detailRow);
 
     if (!allowedLocations.length) {
       showToast('Mindestens ein Standort muss aktiviert sein.');
@@ -541,6 +862,7 @@
         userId: orig.userId,
         displayName: orig.displayName,
         role: orig.role,
+        email: orig.email || '',
         modules: modules,
         adminMatrix: adminMatrix,
         allowedLocations: allowedLocations,
@@ -556,6 +878,10 @@
         const refreshed = await window.SonaApi.checkSession();
         if (refreshed && refreshed.success) {
           STATE.session = Object.assign({}, STATE.session, refreshed);
+          if (refreshed.mustChangePassword) {
+            showForcePasswordScreen();
+            return;
+          }
           renderAuthenticatedShell();
           return;
         }
@@ -569,42 +895,324 @@
     }
   }
 
-  function bindGlobalUiEvents() {
-    document.querySelectorAll('#numpadGrid .numpad-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const digit = btn.dataset.digit;
-        const action = btn.dataset.action;
-        if (digit !== undefined) {
-          if (STATE.pinBuffer.length < 12) {
-            STATE.pinBuffer += digit;
-            updatePinDots();
-          }
-        } else if (action === 'back') {
-          STATE.pinBuffer = STATE.pinBuffer.slice(0, -1);
-          updatePinDots();
-        } else if (action === 'clear') {
-          STATE.pinBuffer = '';
-          updatePinDots();
-        }
+  function openUserProfileModal(mode, entry) {
+    const modal = $('userProfileModal');
+    if (!modal) return;
+
+    const errEl = $('userModalError');
+    if (errEl) {
+      errEl.textContent = '';
+      errEl.classList.add('hidden');
+    }
+
+    $('userModalMode').value = mode || 'create';
+    $('userModalId').value = (entry && entry.userId) || '';
+
+    const roleSel = $('userModalRole');
+    const bereichSel = $('userModalBereich');
+    roleSel.innerHTML = STATE.allowedRoles.map(r => '<option value="' + esc(r) + '">' + esc(r) + '</option>').join('');
+    bereichSel.innerHTML = STATE.allowedBereiche.map(b => '<option value="' + esc(b) + '">' + esc(b) + '</option>').join('');
+
+    const statusSel = $('userModalStatus');
+    const genOtpChk = $('userModalGenOtp');
+    const genOtpLbl = $('userModalGenOtpLabel');
+    const customOtpInput = $('userModalCustomOtp');
+    const sendMailChk = $('userModalSendMail');
+    const permsWrap = $('userModalPermsWrap');
+
+    customOtpInput.value = '';
+    sendMailChk.checked = true;
+
+    if (mode === 'approve' && entry) {
+      $('userModalTitle').textContent = 'Zugang konfigurieren & freigeben';
+      $('userModalName').value = entry.displayName || '';
+      $('userModalEmail').value = entry.email || '';
+      roleSel.value = entry.role || 'VIEWER';
+      bereichSel.value = entry.bereich || 'ALLE';
+      statusSel.value = 'ACTIVE';
+      $('userModalDesc').value = entry.note || '';
+      genOtpChk.checked = true;
+      genOtpChk.disabled = true;
+      genOtpLbl.textContent = 'Einmal-Passwort automatisch generieren (bei Freigabe aktiv)';
+      permsWrap.classList.remove('hidden');
+      populateModalPermissions(
+        { einkauf: false, rezeptur: true, controlling: false, bestand: false, operations: true, adminMatrix: false },
+        [entry.requestedLocation || '001'],
+        'READ'
+      );
+    } else if (mode === 'edit' && entry) {
+      $('userModalTitle').textContent = 'Profil bearbeiten: ' + (entry.displayName || entry.userId);
+      $('userModalName').value = entry.displayName || '';
+      $('userModalEmail').value = entry.email || '';
+      roleSel.value = entry.role || 'VIEWER';
+      bereichSel.value = entry.bereich || 'ALLE';
+      statusSel.value = entry.status === 'ACTIVE' ? 'ACTIVE' : 'DISABLED';
+      $('userModalDesc').value = entry.note || '';
+      genOtpChk.checked = false;
+      genOtpChk.disabled = false;
+      genOtpLbl.textContent = 'Neues Einmal-Passwort generieren (erzwingt Passwort-Änderung)';
+      permsWrap.classList.add('hidden');
+    } else {
+      $('userModalTitle').textContent = 'Neuer Mitarbeiter';
+      $('userModalName').value = '';
+      $('userModalEmail').value = '';
+      roleSel.value = 'VIEWER';
+      bereichSel.value = 'ALLE';
+      statusSel.value = 'ACTIVE';
+      $('userModalDesc').value = '';
+      genOtpChk.checked = true;
+      genOtpChk.disabled = true;
+      genOtpLbl.textContent = 'Einmal-Passwort automatisch generieren (bei Neuanlage aktiv)';
+      permsWrap.classList.remove('hidden');
+      populateModalPermissions(
+        { einkauf: false, rezeptur: true, controlling: false, bestand: false, operations: true, adminMatrix: false },
+        ['001'],
+        'READ'
+      );
+    }
+
+    modal.classList.remove('hidden');
+  }
+
+  function populateModalPermissions(mods, defaultLocs, defaultLevel) {
+    const wrap = $('userModalPermsWrap');
+    if (!wrap) return;
+    wrap.querySelectorAll('.user-init-mod').forEach(chk => {
+      chk.checked = !!mods[chk.dataset.mod];
+    });
+    const locsBox = $('userModalInitLocs');
+    const allLocations = STATE.rbacLocations.length ? STATE.rbacLocations : window.SONA_OS_DEFAULTS.LOCATIONS;
+    locsBox.innerHTML = allLocations.map(l =>
+      '<label class="rbac-tab-chip"><input type="checkbox" class="user-init-loc" value="' + esc(l.id) + '"' + (defaultLocs.indexOf(l.id) !== -1 ? ' checked' : '') + '><span>' + esc(l.name) + ' (' + esc(l.id) + ')</span></label>'
+    ).join('');
+    $('userModalInitLevel').value = defaultLevel || 'READ';
+
+    const tabsBox = $('userModalInitTabs');
+    tabsBox.innerHTML =
+      renderTabPermissionBox('init', 'rezeptur', 'Rezepturen – Tab-Freigaben', STATE.tabCatalog.rezeptur || [], 'ALL') +
+      renderTabPermissionBox('init', 'einkauf', 'Einkauf – Tab-Freigaben', STATE.tabCatalog.einkauf || [], 'ALL') +
+      renderTabPermissionBox('init', 'operations', 'Operations – Schwund & Bruch', STATE.tabCatalog.operations || [], 'ALL');
+    wireTabBoxToggleEvents(tabsBox);
+  }
+
+  async function submitUserProfileModal() {
+    const errEl = $('userModalError');
+    const showModalErr = msg => {
+      if (!errEl) return;
+      if (msg) {
+        errEl.textContent = msg;
+        errEl.classList.remove('hidden');
+      } else {
+        errEl.textContent = '';
+        errEl.classList.add('hidden');
+      }
+    };
+
+    const mode = $('userModalMode').value;
+    const userId = $('userModalId').value.trim();
+    const name = $('userModalName').value.trim();
+    const email = $('userModalEmail').value.trim().toLowerCase();
+    const role = $('userModalRole').value;
+    const bereich = $('userModalBereich').value;
+    const status = $('userModalStatus').value;
+    const note = $('userModalDesc').value.trim();
+    const customOtp = $('userModalCustomOtp').value.trim();
+    const genOtp = $('userModalGenOtp').checked;
+    const sendMail = $('userModalSendMail').checked;
+
+    if (name.length < 2) {
+      showModalErr('Bitte gültigen Namen eingeben (mind. 2 Zeichen).');
+      return;
+    }
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      showModalErr('Bitte gültige Gmail / E-Mail-Adresse eingeben.');
+      return;
+    }
+    if (customOtp && (customOtp.length < 6 || customOtp.length > 64)) {
+      showModalErr('Ein vorgegebenes Einmal-Passwort muss zwischen 6 und 64 Zeichen lang sein.');
+      return;
+    }
+
+    const payload = {
+      userId: userId,
+      name: name,
+      email: email,
+      role: role,
+      bereich: bereich,
+      status: status,
+      note: note,
+      generateOneTimePassword: genOtp,
+      oneTimePassword: customOtp,
+      sendInviteEmail: sendMail
+    };
+
+    if (mode === 'create' || mode === 'approve') {
+      const modules = {};
+      let adminMatrix = false;
+      $('userModalPermsWrap').querySelectorAll('.user-init-mod').forEach(chk => {
+        if (chk.dataset.mod === 'adminMatrix') adminMatrix = chk.checked;
+        else modules[chk.dataset.mod] = chk.checked;
       });
+      const allowedLocations = [];
+      $('userModalInitLocs').querySelectorAll('.user-init-loc:checked').forEach(chk => allowedLocations.push(chk.value));
+      if (!allowedLocations.length) {
+        showModalErr('Mindestens ein Standort muss freigegeben sein.');
+        return;
+      }
+      payload.rule = {
+        modules: modules,
+        adminMatrix: adminMatrix,
+        allowedLocations: allowedLocations,
+        accessLevel: $('userModalInitLevel').value,
+        tabPermissions: readTabPermissionsFromContainer($('userModalInitTabs'))
+      };
+    }
+
+    showModalErr('');
+    const saveBtn = $('btnSaveUserModal');
+    saveBtn.disabled = true;
+    saveBtn.textContent = 'Speichert…';
+    try {
+      const res = await window.SonaApi.saveUser(payload);
+      if (!res || !res.success) {
+        showModalErr((res && res.error) || 'Speichern fehlgeschlagen.');
+        return;
+      }
+      $('userProfileModal').classList.add('hidden');
+      if (res.oneTimePassword) {
+        STATE.lastOtpResult = {
+          displayName: res.user.displayName,
+          email: res.user.email,
+          password: res.oneTimePassword,
+          emailSent: res.emailSent,
+          emailError: res.emailError
+        };
+      }
+      showToast('Mitarbeiter ' + res.user.displayName + ' gespeichert.');
+      if (STATE.session && STATE.session.user && res.userId === STATE.session.user.id) {
+        const refreshed = await window.SonaApi.checkSession();
+        if (refreshed && refreshed.success) {
+          STATE.session = Object.assign({}, STATE.session, refreshed);
+          if (refreshed.mustChangePassword) {
+            showForcePasswordScreen();
+            return;
+          }
+          renderAuthenticatedShell();
+          return;
+        }
+      }
+      await loadRbacTable();
+    } catch (err) {
+      showModalErr('Verbindungsfehler: ' + err.message);
+    } finally {
+      saveBtn.disabled = false;
+      saveBtn.textContent = 'Speichern';
+    }
+  }
+
+  function openChangePwModal() {
+    const modal = $('changePasswordModal');
+    if (!modal) return;
+    if ($('changePwError')) {
+      $('changePwError').textContent = '';
+      $('changePwError').classList.add('hidden');
+    }
+    if ($('changePwCurrent')) $('changePwCurrent').value = '';
+    if ($('changePwNew')) $('changePwNew').value = '';
+    if ($('changePwConfirm')) $('changePwConfirm').value = '';
+    modal.classList.remove('hidden');
+  }
+
+  async function submitChangePwModal() {
+    const curPw = ($('changePwCurrent') && $('changePwCurrent').value || '').trim();
+    const newPw = ($('changePwNew') && $('changePwNew').value || '').trim();
+    const confirmPw = ($('changePwConfirm') && $('changePwConfirm').value || '').trim();
+    const errEl = $('changePwError');
+    const showErr = msg => {
+      if (!errEl) return;
+      if (msg) {
+        errEl.textContent = msg;
+        errEl.classList.remove('hidden');
+      } else {
+        errEl.textContent = '';
+        errEl.classList.add('hidden');
+      }
+    };
+
+    if (!curPw) {
+      showErr('Bitte aktuelles Passwort eingeben.');
+      return;
+    }
+    if (newPw.length < 6 || newPw.length > 64) {
+      showErr('Das neue Passwort muss zwischen 6 und 64 Zeichen lang sein.');
+      return;
+    }
+    if (newPw !== confirmPw) {
+      showErr('Die beiden neuen Passwörter stimmen nicht überein.');
+      return;
+    }
+
+    showErr('');
+    const saveBtn = $('btnSaveChangePwModal');
+    saveBtn.disabled = true;
+    try {
+      const res = await window.SonaApi.changePassword(curPw, newPw);
+      if (!res || !res.success || !res.token) {
+        showErr((res && res.error) || 'Passwort konnte nicht geändert werden.');
+        return;
+      }
+      window.SonaApi.setToken(res.token);
+      STATE.session = res;
+      $('changePasswordModal').classList.add('hidden');
+      showToast('Passwort erfolgreich geändert.');
+    } catch (err) {
+      showErr('Verbindungsfehler: ' + err.message);
+    } finally {
+      saveBtn.disabled = false;
+    }
+  }
+
+  function bindGlobalUiEvents() {
+    $('tabBtnLogin').addEventListener('click', () => switchAuthTab('login'));
+    $('tabBtnRegister').addEventListener('click', () => switchAuthTab('register'));
+    $('btnLoginSubmit').addEventListener('click', submitLogin);
+    $('btnRegisterSubmit').addEventListener('click', submitRegisterRequest);
+    $('btnForcePwSubmit').addEventListener('click', submitForcePasswordChange);
+    $('btnForcePwCancel').addEventListener('click', () => lockApp('Abgemeldet.'));
+
+    ['loginEmail', 'loginPassword'].forEach(id => {
+      const el = $(id);
+      if (el) {
+        el.addEventListener('keydown', ev => {
+          if (ev.key === 'Enter') {
+            ev.preventDefault();
+            submitLogin();
+          }
+        });
+      }
     });
 
-    $('btnLoginSubmit').addEventListener('click', submitLogin);
+    ['regName', 'regEmail', 'regNote'].forEach(id => {
+      const el = $(id);
+      if (el) {
+        el.addEventListener('keydown', ev => {
+          if (ev.key === 'Enter') {
+            ev.preventDefault();
+            submitRegisterRequest();
+          }
+        });
+      }
+    });
 
-    document.addEventListener('keydown', ev => {
-      if ($('lockScreen').classList.contains('hidden')) return;
-      if (!$('gatewayModal').classList.contains('hidden')) return;
-      if (/^[0-9]$/.test(ev.key)) {
-        if (STATE.pinBuffer.length < 12) {
-          STATE.pinBuffer += ev.key;
-          updatePinDots();
-        }
-      } else if (ev.key === 'Backspace') {
-        STATE.pinBuffer = STATE.pinBuffer.slice(0, -1);
-        updatePinDots();
-      } else if (ev.key === 'Enter') {
-        ev.preventDefault();
-        submitLogin();
+    ['forcePwCurrent', 'forcePwNew', 'forcePwConfirm'].forEach(id => {
+      const el = $(id);
+      if (el) {
+        el.addEventListener('keydown', ev => {
+          if (ev.key === 'Enter') {
+            ev.preventDefault();
+            submitForcePasswordChange();
+          }
+        });
       }
     });
 
@@ -620,6 +1228,7 @@
       }
       const btn = ev.target.closest('button[data-view]');
       if (!btn) return;
+      if (btn.dataset.view !== 'rbac') STATE.lastOtpResult = null;
       STATE.activeView = btn.dataset.view;
       renderActiveView();
     };
@@ -648,6 +1257,7 @@
     const btnBrandHome = $('btnBrandHome');
     if (btnBrandHome) {
       btnBrandHome.addEventListener('click', () => {
+        STATE.lastOtpResult = null;
         STATE.activeView = 'overview';
         renderActiveView();
       });
@@ -675,6 +1285,15 @@
       }
     });
 
+    $('btnOpenChangePw').addEventListener('click', openChangePwModal);
+    $('btnCloseChangePwModal').addEventListener('click', () => $('changePasswordModal').classList.add('hidden'));
+    $('btnCancelChangePwModal').addEventListener('click', () => $('changePasswordModal').classList.add('hidden'));
+    $('btnSaveChangePwModal').addEventListener('click', submitChangePwModal);
+
+    $('btnCloseUserModal').addEventListener('click', () => $('userProfileModal').classList.add('hidden'));
+    $('btnCancelUserModal').addEventListener('click', () => $('userProfileModal').classList.add('hidden'));
+    $('btnSaveUserModal').addEventListener('click', submitUserProfileModal);
+
     $('btnLockLogout').addEventListener('click', () => lockApp('Sitzung gesperrt.'));
 
     $('btnOpenGatewaySettings').addEventListener('click', () => {
@@ -691,7 +1310,7 @@
       try {
         window.SonaApi.setGatewayUrl($('gatewayUrlInput').value);
         $('gatewayModal').classList.add('hidden');
-        loadLockUsers();
+        loadPublicMeta();
         showToast('Gateway-URL gespeichert.');
       } catch (err) {
         showToast(err.message);
@@ -717,11 +1336,10 @@
   async function init() {
     window.SonaLoader.init();
     window.SonaLoader.show(0);
-    updatePinDots();
     bindGlobalUiEvents();
 
     window.SonaApi.setUnauthorizedHandler(msg => {
-      lockApp(msg || 'Sitzung abgelaufen – bitte erneut mit PIN entsperren.');
+      lockApp(msg || 'Sitzung abgelaufen – bitte erneut anmelden.');
     });
     window.addEventListener('offline', () => showToast('Offline – Verbindung zum SONA Gateway unterbrochen.'));
     window.addEventListener('online', () => showToast('Verbindung wiederhergestellt.'));
@@ -736,11 +1354,15 @@
         const sess = await window.SonaApi.checkSession();
         if (sess && sess.success) {
           STATE.session = sess;
+          if (sess.mustChangePassword) {
+            showForcePasswordScreen();
+            return;
+          }
           renderAuthenticatedShell();
           return;
         }
       }
-      await loadLockUsers();
+      await loadPublicMeta();
     } finally {
       window.SonaLoader.hide();
     }

@@ -32,7 +32,7 @@
     </div>
   </div>
 
-  <!-- Strict PIN App-Lock Screen -->
+  <!-- Email + Password Login & Self-Registration Request Screen -->
   <main id="lockScreen" class="lock-screen">
     <section class="lock-card" aria-label="SONA OS Anmeldung">
       <div class="lock-brand">
@@ -43,41 +43,64 @@
         </div>
       </div>
 
+      <div class="auth-tabs" role="tablist">
+        <button type="button" id="tabBtnLogin" class="auth-tab-btn active" role="tab" aria-selected="true">Anmelden</button>
+        <button type="button" id="tabBtnRegister" class="auth-tab-btn" role="tab" aria-selected="false">Zugang anfragen</button>
+      </div>
+
       <div id="lockError" class="lock-error hidden"></div>
+      <div id="lockSuccess" class="lock-success hidden"></div>
 
-      <div class="form-field">
-        <label class="kicker" for="lockUserSelect">Benutzer auswählen</label>
-        <select id="lockUserSelect" class="input-control">
-          <option value="">Lade aktive Benutzer …</option>
-        </select>
+      <div id="loginFormPane">
+        <div class="form-field">
+          <label class="kicker" for="loginEmail">Gmail / E-Mail-Adresse</label>
+          <input type="email" id="loginEmail" class="input-control" autocomplete="email" placeholder="name@gmail.com">
+        </div>
+
+        <div class="form-field">
+          <label class="kicker" for="loginPassword">Passwort / Einmal-Passwort</label>
+          <input type="password" id="loginPassword" class="input-control" autocomplete="current-password" placeholder="Passwort eingeben">
+        </div>
+
+        <button type="button" id="btnLoginSubmit" class="btn btn-primary" style="width:100%;height:42px;">Anmelden</button>
+        <div class="kicker" style="margin-top:10px;line-height:1.45;text-transform:none;letter-spacing:0.02em;">
+          Neu bei SONA OS? Reiche über <b>Zugang anfragen</b> deine Gmail-Adresse ein – nach individueller Freigabe erhältst du dein Einmal-Passwort per E-Mail.
+        </div>
       </div>
 
-      <div class="form-field">
-        <label class="kicker" for="lockLocationSelect">Standort</label>
-        <select id="lockLocationSelect" class="input-control"></select>
-      </div>
+      <div id="registerFormPane" class="hidden">
+        <div class="form-field">
+          <label class="kicker" for="regName">Vollständiger Name</label>
+          <input type="text" id="regName" class="input-control" autocomplete="name" placeholder="Vorname Nachname" maxlength="80">
+        </div>
 
-      <div class="form-field">
-        <label class="kicker">SONA-PIN</label>
-        <div id="pinDots" class="pin-dots" aria-label="PIN Eingabe"></div>
-      </div>
+        <div class="form-field">
+          <label class="kicker" for="regEmail">Gmail / E-Mail-Adresse</label>
+          <input type="email" id="regEmail" class="input-control" autocomplete="email" placeholder="vorname.nachname@gmail.com" maxlength="160">
+        </div>
 
-      <div id="numpadGrid" class="numpad-grid">
-        <button type="button" class="numpad-btn" data-digit="1">1</button>
-        <button type="button" class="numpad-btn" data-digit="2">2</button>
-        <button type="button" class="numpad-btn" data-digit="3">3</button>
-        <button type="button" class="numpad-btn" data-digit="4">4</button>
-        <button type="button" class="numpad-btn" data-digit="5">5</button>
-        <button type="button" class="numpad-btn" data-digit="6">6</button>
-        <button type="button" class="numpad-btn" data-digit="7">7</button>
-        <button type="button" class="numpad-btn" data-digit="8">8</button>
-        <button type="button" class="numpad-btn" data-digit="9">9</button>
-        <button type="button" class="numpad-btn numpad-action" data-action="clear">Leeren</button>
-        <button type="button" class="numpad-btn" data-digit="0">0</button>
-        <button type="button" class="numpad-btn numpad-action" data-action="back">Löschen</button>
-      </div>
+        <div class="form-field">
+          <label class="kicker" for="regLocation">Haupt-Standort</label>
+          <select id="regLocation" class="input-control"></select>
+        </div>
 
-      <button type="button" id="btnLoginSubmit" class="btn btn-primary" style="width:100%;height:42px;">Entsperren</button>
+        <div class="form-field">
+          <label class="kicker" for="regBereich">Arbeitsbereich</label>
+          <select id="regBereich" class="input-control">
+            <option value="ALLE">Alle Bereiche / Verwaltung</option>
+            <option value="KUECHE">Küche</option>
+            <option value="BAR">Bar</option>
+            <option value="SERVICE">Service</option>
+          </select>
+        </div>
+
+        <div class="form-field">
+          <label class="kicker" for="regNote">Hinweis / Funktion (optional)</label>
+          <input type="text" id="regNote" class="input-control" placeholder="z. B. Serviceleitung Karli" maxlength="200">
+        </div>
+
+        <button type="button" id="btnRegisterSubmit" class="btn btn-primary" style="width:100%;height:42px;">Zugang anfragen</button>
+      </div>
 
       <div class="lock-footer">
         <span class="kicker">GitHub-Pages PWA</span>
@@ -85,6 +108,42 @@
       </div>
     </section>
   </main>
+
+  <!-- Mandatory First-Login Password Setup Screen -->
+  <section id="forcePasswordScreen" class="lock-screen hidden" aria-label="Eigenes Passwort festlegen">
+    <div class="lock-card">
+      <div class="lock-brand">
+        <img src="./assets/sona-logo.jpg" alt="SONA Logo">
+        <div>
+          <div class="kicker">Erstanmeldung · Sicherheit</div>
+          <h1>Eigenes Passwort festlegen</h1>
+        </div>
+      </div>
+
+      <div id="forcePwUserLabel" class="kicker" style="margin-bottom:12px;color:var(--os-cream);"></div>
+      <div id="forcePwError" class="lock-error hidden"></div>
+
+      <div class="form-field">
+        <label class="kicker" for="forcePwCurrent">Aktuelles Passwort / Einmal-Passwort</label>
+        <input type="password" id="forcePwCurrent" class="input-control" autocomplete="current-password">
+      </div>
+
+      <div class="form-field">
+        <label class="kicker" for="forcePwNew">Neues Passwort (mind. 6 Zeichen)</label>
+        <input type="password" id="forcePwNew" class="input-control" autocomplete="new-password" minlength="6" maxlength="64">
+      </div>
+
+      <div class="form-field">
+        <label class="kicker" for="forcePwConfirm">Neues Passwort bestätigen</label>
+        <input type="password" id="forcePwConfirm" class="input-control" autocomplete="new-password" minlength="6" maxlength="64">
+      </div>
+
+      <div style="display:flex;gap:8px;margin-top:6px;">
+        <button type="button" id="btnForcePwCancel" class="btn" style="flex:1;height:40px;">Abmelden</button>
+        <button type="button" id="btnForcePwSubmit" class="btn btn-primary" style="flex:2;height:40px;">Passwort speichern &amp; starten</button>
+      </div>
+    </div>
+  </section>
 
   <!-- Authenticated SONA-OS Workspace Shell (populated ONLY after verified login) -->
   <div id="osAppShell" class="os-shell hidden">
@@ -104,6 +163,7 @@
       <div class="sidebar-footer">
         <div id="sidebarUserMeta"></div>
         <button type="button" id="btnInstallPwa" class="btn btn-primary btn-sm hidden" style="width:100%;">App installieren</button>
+        <button type="button" id="btnOpenChangePw" class="btn btn-sm" style="width:100%;">Passwort ändern</button>
         <button type="button" id="btnLockLogout" class="btn btn-sm" style="width:100%;">Sperren</button>
       </div>
     </aside>
@@ -132,6 +192,139 @@
       <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;">
         <button type="button" id="btnResetGatewayUrl" class="btn btn-sm">Standard zurücksetzen</button>
         <button type="button" id="btnSaveGatewayUrl" class="btn btn-primary btn-sm">Speichern</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Voluntary Password Change Modal -->
+  <div id="changePasswordModal" class="modal-backdrop hidden">
+    <div class="modal-card">
+      <div class="card-head">
+        <div>
+          <div class="kicker">Sicherheit</div>
+          <h3>Passwort ändern</h3>
+        </div>
+        <button type="button" id="btnCloseChangePwModal" class="btn btn-sm">Schließen</button>
+      </div>
+      <div id="changePwError" class="lock-error hidden"></div>
+      <div class="form-field">
+        <label class="kicker" for="changePwCurrent">Aktuelles Passwort</label>
+        <input type="password" id="changePwCurrent" class="input-control" autocomplete="current-password">
+      </div>
+      <div class="form-field">
+        <label class="kicker" for="changePwNew">Neues Passwort (mind. 6 Zeichen)</label>
+        <input type="password" id="changePwNew" class="input-control" autocomplete="new-password" minlength="6" maxlength="64">
+      </div>
+      <div class="form-field">
+        <label class="kicker" for="changePwConfirm">Neues Passwort bestätigen</label>
+        <input type="password" id="changePwConfirm" class="input-control" autocomplete="new-password" minlength="6" maxlength="64">
+      </div>
+      <div style="display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;">
+        <button type="button" id="btnCancelChangePwModal" class="btn btn-sm">Abbrechen</button>
+        <button type="button" id="btnSaveChangePwModal" class="btn btn-primary btn-sm">Speichern</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Admin Employee Profile, Approval & One-Time Password Modal -->
+  <div id="userProfileModal" class="modal-backdrop hidden">
+    <div class="modal-card modal-card-wide">
+      <div class="card-head">
+        <div>
+          <div class="kicker">Mitarbeiter-Verwaltung</div>
+          <h3 id="userModalTitle">Neuer Mitarbeiter</h3>
+        </div>
+        <button type="button" id="btnCloseUserModal" class="btn btn-sm">Schließen</button>
+      </div>
+
+      <div id="userModalError" class="lock-error hidden"></div>
+      <input type="hidden" id="userModalId">
+      <input type="hidden" id="userModalMode">
+
+      <div class="user-modal-grid">
+        <div class="form-field">
+          <label class="kicker" for="userModalName">Name</label>
+          <input type="text" id="userModalName" class="input-control" maxlength="80" placeholder="Vorname Nachname">
+        </div>
+        <div class="form-field">
+          <label class="kicker" for="userModalEmail">Gmail / E-Mail-Adresse</label>
+          <input type="email" id="userModalEmail" class="input-control" maxlength="160" placeholder="name@gmail.com">
+        </div>
+        <div class="form-field">
+          <label class="kicker" for="userModalRole">Rolle</label>
+          <select id="userModalRole" class="input-control"></select>
+        </div>
+        <div class="form-field">
+          <label class="kicker" for="userModalBereich">Arbeitsbereich</label>
+          <select id="userModalBereich" class="input-control"></select>
+        </div>
+        <div class="form-field">
+          <label class="kicker" for="userModalStatus">Konto-Status</label>
+          <select id="userModalStatus" class="input-control">
+            <option value="ACTIVE">ACTIVE (Freigeschaltet)</option>
+            <option value="DISABLED">DISABLED (Deaktiviert)</option>
+          </select>
+        </div>
+        <div class="form-field">
+          <label class="kicker" for="userModalDesc">Notiz / Beschreibung</label>
+          <input type="text" id="userModalDesc" class="input-control" maxlength="200" placeholder="Optional">
+        </div>
+      </div>
+
+      <div id="userModalOtpSection" class="user-init-perms">
+        <div class="kicker" style="margin-bottom:8px;color:var(--os-cream);">Einmal-Passwort &amp; Einladung</div>
+        <div style="display:flex;flex-wrap:wrap;gap:14px;margin-bottom:10px;">
+          <label class="rbac-tab-chip">
+            <input type="checkbox" id="userModalGenOtp">
+            <span id="userModalGenOtpLabel">Einmal-Passwort automatisch generieren</span>
+          </label>
+          <label class="rbac-tab-chip">
+            <input type="checkbox" id="userModalSendMail" checked>
+            <span>Einmal-Passwort direkt per E-Mail senden</span>
+          </label>
+        </div>
+        <div class="form-field" style="margin-bottom:0;">
+          <label class="kicker" for="userModalCustomOtp">Optional: eigenes Einmal-Passwort vorgeben (mind. 6 Zeichen)</label>
+          <input type="text" id="userModalCustomOtp" class="input-control" maxlength="64" placeholder="Leer lassen für automatisches Einmal-Passwort (z. B. Sona-XXXXXX)">
+        </div>
+      </div>
+
+      <div id="userModalPermsWrap" class="user-init-perms">
+        <div class="kicker" style="margin-bottom:8px;color:var(--os-cream);">Individuelle Rechte &amp; Tab-Freigaben</div>
+
+        <div class="form-field">
+          <label class="kicker">Freigegebene Module</label>
+          <div class="user-init-chks">
+            <label class="rbac-tab-chip"><input type="checkbox" class="user-init-mod" data-mod="einkauf"><span>Einkauf</span></label>
+            <label class="rbac-tab-chip"><input type="checkbox" class="user-init-mod" data-mod="rezeptur"><span>Rezepturen</span></label>
+            <label class="rbac-tab-chip"><input type="checkbox" class="user-init-mod" data-mod="controlling"><span>Controlling</span></label>
+            <label class="rbac-tab-chip"><input type="checkbox" class="user-init-mod" data-mod="bestand"><span>Bestand</span></label>
+            <label class="rbac-tab-chip"><input type="checkbox" class="user-init-mod" data-mod="operations"><span>Operations</span></label>
+            <label class="rbac-tab-chip"><input type="checkbox" class="user-init-mod" data-mod="adminMatrix"><span>Admin (Rechte-Matrix)</span></label>
+          </div>
+        </div>
+
+        <div class="user-modal-grid">
+          <div class="form-field">
+            <label class="kicker">Freigegebene Standorte</label>
+            <div id="userModalInitLocs" class="user-init-chks"></div>
+          </div>
+          <div class="form-field">
+            <label class="kicker" for="userModalInitLevel">Zugriffsstufe</label>
+            <select id="userModalInitLevel" class="input-control">
+              <option value="READ">READ (Nur Lesen / Mitarbeiter)</option>
+              <option value="WRITE">WRITE (Erstellen &amp; Bearbeiten)</option>
+              <option value="ADMIN">ADMIN (Vollzugriff)</option>
+            </select>
+          </div>
+        </div>
+
+        <div id="userModalInitTabs" class="rbac-tabs-grid" style="margin-top:6px;"></div>
+      </div>
+
+      <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px;flex-wrap:wrap;">
+        <button type="button" id="btnCancelUserModal" class="btn btn-sm">Abbrechen</button>
+        <button type="button" id="btnSaveUserModal" class="btn btn-primary btn-sm">Speichern</button>
       </div>
     </div>
   </div>
