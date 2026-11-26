@@ -375,7 +375,9 @@
       if (hasOpTab('todo')) {
         opsNavItems.push({ key: 'ops_todo', title: 'To-Do-Liste', pillar: 'OPERATIONS' });
       }
-      opsNavItems.push({ key: 'ops_putzplan', title: 'Putzplan', pillar: 'OPERATIONS' });
+      if (hasOpTab('putzplan')) {
+        opsNavItems.push({ key: 'ops_putzplan', title: 'Putzplan', pillar: 'OPERATIONS' });
+      }
       if (hasOpTab('mitarbeiterbewertung')) {
         opsNavItems.push({ key: 'ops_ranking', title: 'Mitarbeiter Ranking', pillar: 'OPERATIONS' });
       }
@@ -1230,9 +1232,10 @@
       genOtpChk.disabled = true;
       genOtpLbl.textContent = 'Einmal-Passwort automatisch generieren (bei Freigabe aktiv)';
       permsWrap.classList.remove('hidden');
+      const reqLocNorm = String(entry.requestedLocation || '001').trim().padStart(3, '0');
       populateModalPermissions(
         { einkauf: false, rezeptur: true, controlling: false, bestand: false, operations: true, adminMatrix: false },
-        [entry.requestedLocation || '001'],
+        [reqLocNorm === '000' ? '001' : reqLocNorm],
         'READ'
       );
     } else if (mode === 'edit' && entry) {
@@ -1277,8 +1280,12 @@
     });
     const locsBox = $('userModalInitLocs');
     const allLocations = STATE.rbacLocations.length ? STATE.rbacLocations : window.SONA_OS_DEFAULTS.LOCATIONS;
+    const normLocs = (Array.isArray(defaultLocs) ? defaultLocs : ['001'])
+      .map(v => String(v || '').trim().padStart(3, '0'))
+      .filter(v => v && v !== '000');
+    const effectiveLocs = normLocs.length ? normLocs : ['001'];
     locsBox.innerHTML = allLocations.map(l =>
-      '<label class="rbac-tab-chip"><input type="checkbox" class="user-init-loc" value="' + esc(l.id) + '"' + (defaultLocs.indexOf(l.id) !== -1 ? ' checked' : '') + '><span>' + esc(l.name) + ' (' + esc(l.id) + ')</span></label>'
+      '<label class="rbac-tab-chip"><input type="checkbox" class="user-init-loc" value="' + esc(l.id) + '"' + (effectiveLocs.indexOf(String(l.id)) !== -1 ? ' checked' : '') + '><span>' + esc(l.name) + ' (' + esc(l.id) + ')</span></label>'
     ).join('');
     $('userModalInitLevel').value = defaultLevel || 'READ';
 
@@ -1286,7 +1293,7 @@
     tabsBox.innerHTML =
       renderTabPermissionBox('init', 'rezeptur', 'Rezepturen – Tab-Freigaben', STATE.tabCatalog.rezeptur || [], 'ALL') +
       renderTabPermissionBox('init', 'einkauf', 'Einkauf – Tab-Freigaben', STATE.tabCatalog.einkauf || [], 'ALL') +
-      renderTabPermissionBox('init', 'operations', 'Operations – Schwund & Bruch', STATE.tabCatalog.operations || [], 'ALL');
+      renderTabPermissionBox('init', 'operations', 'Operations – Tab-Freigaben', STATE.tabCatalog.operations || [], 'ALL');
     wireTabBoxToggleEvents(tabsBox);
   }
 
@@ -1297,6 +1304,8 @@
       if (msg) {
         errEl.textContent = msg;
         errEl.classList.remove('hidden');
+        try { errEl.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch (eScroll) {}
+        toast(msg);
       } else {
         errEl.textContent = '';
         errEl.classList.add('hidden');

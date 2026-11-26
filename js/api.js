@@ -258,6 +258,23 @@
       rating: rating,
       note: note
     }),
+    getOpsPutzplanDay: (standortId, dateIso) => callPost('os_ops_putzplan_day', {
+      standortId: standortId,
+      date: dateIso || ''
+    }),
+    toggleOpsPutzplanTask: (standortId, dateIso, col, done, person) => callPost('os_ops_putzplan_toggle', {
+      standortId: standortId,
+      date: dateIso || '',
+      col: col,
+      done: !!done,
+      person: person || ''
+    }),
+    saveOpsPutzplanMeta: (standortId, dateIso, person, remark) => callPost('os_ops_putzplan_meta_save', {
+      standortId: standortId,
+      date: dateIso || '',
+      person: person,
+      remark: remark
+    }),
     getModuleLaunchUrl: (moduleKey, standortId) => callPost('os_module_launch', {
       moduleKey: moduleKey,
       standortId: standortId

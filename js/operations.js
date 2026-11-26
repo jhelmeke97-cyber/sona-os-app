@@ -6,6 +6,7 @@
     selectedMonth: '',
     selectedPeriod: '',
     selectedTodoDate: '',
+    selectedPutzplanDate: '',
     ratingSubTab: 'staff',
     meta: null,
     selectedArt: 'Gäste im Haus',
@@ -1178,6 +1179,212 @@
     }
   }
 
+  async function loadPutzplanTab(session, targetDateIso) {
+    const pane = document.getElementById('opsTabPane');
+    if (!pane) return;
+    const dateIso = targetDateIso || OPS_STATE.selectedPutzplanDate || todayIsoLocal();
+    OPS_STATE.selectedPutzplanDate = dateIso;
+
+    pane.innerHTML =
+      '<div class="card">' +
+        '<div class="kicker">Putzplan · ' + esc(session.standortName) + '</div>' +
+        '<p class="module-desc">Lade Tagesaufgaben …</p>' +
+      '</div>';
+
+    try {
+      const res = await window.SonaApi.getOpsPutzplanDay(session.standortId, dateIso);
+      if (!document.getElementById('opsTabPane')) return;
+
+      if (!res || !res.success) {
+        pane.innerHTML =
+          '<div class="card">' +
+            '<div class="kicker">Putzplan</div>' +
+            '<h3>Putzplan konnte nicht geladen werden</h3>' +
+            '<p class="module-desc">' + esc((res && res.error) || 'Unbekannter Fehler.') + '</p>' +
+          '</div>';
+        return;
+      }
+
+      if (res.status === 'IN_VORBEREITUNG') {
+        pane.innerHTML =
+          '<div class="card">' +
+            '<div class="kicker">Putzplan · ' + esc(session.standortName) + '</div>' +
+            '<h3>Noch nicht für diesen Standort verknüpft</h3>' +
+            '<p class="module-desc">' + esc(res.message || 'Für diesen Standort ist noch kein Putzplan hinterlegt.') + '</p>' +
+          '</div>';
+        return;
+      }
+
+      const weekDays = Array.isArray(res.weekDays) ? res.weekDays : [];
+      const dayButtonsHtml = weekDays.length
+        ? '<div class="ops-todo-days">' +
+            weekDays.map(function(d) {
+              const active = d.dateIso === res.dateIso ? ' active' : '';
+              return '<button type="button" class="ops-todo-day-btn' + active + '" data-putz-date="' + esc(d.dateIso) + '">' +
+                '<b>' + esc(d.dayKey) + '</b>' +
+                '<span class="day-count">' + esc(d.dateShort) + '</span>' +
+                '<span class="day-count">' + esc(d.done) + '/' + esc(d.total) + '</span>' +
+              '</button>';
+            }).join('') +
+          '</div>'
+        : '';
+
+      if (res.status === 'KEINE_ZEILE') {
+        pane.innerHTML =
+          '<div class="card">' +
+            '<div class="card-head">' +
+              '<div>' +
+                '<div class="kicker">' + esc(res.kwLabel || '') + '</div>' +
+                '<h3>Putzplan · ' + esc(res.dayLabel || '') + ' (' + esc(res.dateShort || res.dateIso) + ')</h3>' +
+              '</div>' +
+              '<div style="display:flex;gap:6px;flex-wrap:wrap;">' +
+                '<button type="button" id="btnPutzPrevWeek" class="btn btn-sm">←</button>' +
+                '<button type="button" id="btnPutzToday" class="btn btn-sm">Heute</button>' +
+                '<button type="button" id="btnPutzNextWeek" class="btn btn-sm">→</button>' +
+              '</div>' +
+            '</div>' +
+            dayButtonsHtml +
+            '<p class="module-desc">' + esc(res.message || 'Für diesen Tag ist noch keine Zeile angelegt.') + '</p>' +
+          '</div>';
+      } else {
+        const tasks = Array.isArray(res.tasks) ? res.tasks : [];
+        const defaultPerson = res.person || getSavedOpsName(session);
+
+        pane.innerHTML =
+          '<div class="card">' +
+            '<div class="card-head">' +
+              '<div>' +
+                '<div class="kicker">' + esc(res.kwLabel || '') + ' · ' + esc(res.sheetName || 'Putzplan') + '</div>' +
+                '<h3>' + esc(res.dayLabel) + ' · ' + esc(res.dateShort || res.dateIso) + '</h3>' +
+              '</div>' +
+              '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">' +
+                '<span id="opsPutzQuoteBadge" class="badge">' + esc(res.doneCount || 0) + ' / ' + esc(res.totalCount || 5) + ' (' + esc(res.quotePct || 0) + ' %)</span>' +
+                '<button type="button" id="btnPutzPrevWeek" class="btn btn-sm">←</button>' +
+                '<button type="button" id="btnPutzToday" class="btn btn-sm">Heute</button>' +
+                '<button type="button" id="btnPutzNextWeek" class="btn btn-sm">→</button>' +
+                '<button type="button" id="btnPutzReload" class="btn btn-sm">Aktualisieren</button>' +
+              '</div>' +
+            '</div>' +
+            dayButtonsHtml +
+            '<div class="ops-todo-progress-track"><div id="opsPutzProgressFill" class="ops-todo-progress-fill" style="width:' + esc(res.quotePct || 0) + '%;"></div></div>' +
+            '<div id="opsPutzMsg" style="margin-bottom:10px;font-size:12px;"></div>' +
+            '<div class="ops-todo-list" style="margin-bottom:16px;">' +
+              tasks.map(function(t) {
+                return '<label class="ops-todo-item' + (t.done ? ' is-done' : '') + '" data-col="' + esc(t.col) + '">' +
+                  '<input type="checkbox" class="ops-putz-chk"' + (t.done ? ' checked' : '') + '>' +
+                  '<span class="ops-todo-text">' + esc(t.name) + '</span>' +
+                '</label>';
+              }).join('') +
+            '</div>' +
+            '<div class="user-modal-grid">' +
+              '<div class="form-field">' +
+                '<label class="kicker" for="opsPutzPerson">Mitarbeiter / Name</label>' +
+                '<input type="text" id="opsPutzPerson" class="input-control" maxlength="80" value="' + esc(defaultPerson) + '" placeholder="Name">' +
+              '</div>' +
+              '<div class="form-field">' +
+                '<label class="kicker" for="opsPutzRemark">Bemerkung (optional)</label>' +
+                '<input type="text" id="opsPutzRemark" class="input-control" maxlength="1000" value="' + esc(res.remark || '') + '" placeholder="Hinweise …">' +
+              '</div>' +
+            '</div>' +
+            '<div style="display:flex;justify-content:flex-end;">' +
+              '<button type="button" id="btnSavePutzMeta" class="btn btn-primary btn-sm">Name &amp; Bemerkung speichern</button>' +
+            '</div>' +
+          '</div>';
+
+        let localDone = res.doneCount || 0;
+        const localTotal = res.totalCount || tasks.length || 5;
+        const updatePutzProgress = function() {
+          const pct = localTotal > 0 ? Math.round((localDone / localTotal) * 100) : 0;
+          const badge = document.getElementById('opsPutzQuoteBadge');
+          const fill = document.getElementById('opsPutzProgressFill');
+          if (badge) badge.textContent = localDone + ' / ' + localTotal + ' (' + pct + ' %)';
+          if (fill) fill.style.width = pct + '%';
+        };
+
+        pane.querySelectorAll('.ops-todo-item').forEach(function(itemEl) {
+          const chk = itemEl.querySelector('.ops-putz-chk');
+          if (!chk) return;
+          chk.addEventListener('change', async function() {
+            const newDone = !!chk.checked;
+            itemEl.classList.toggle('is-done', newDone);
+            localDone += newDone ? 1 : -1;
+            updatePutzProgress();
+            const personEl = document.getElementById('opsPutzPerson');
+            const personVal = personEl ? personEl.value.trim() : '';
+            try {
+              const tRes = await window.SonaApi.toggleOpsPutzplanTask(
+                session.standortId,
+                res.dateIso,
+                parseInt(itemEl.dataset.col, 10),
+                newDone,
+                personVal
+              );
+              if (!tRes || !tRes.success) {
+                chk.checked = !newDone;
+                itemEl.classList.toggle('is-done', !newDone);
+                localDone += newDone ? -1 : 1;
+                updatePutzProgress();
+                const msgEl = document.getElementById('opsPutzMsg');
+                if (msgEl) { msgEl.style.color = '#f87171'; msgEl.textContent = (tRes && tRes.error) || 'Speichern fehlgeschlagen.'; }
+              } else if (tRes.person && personEl && !personEl.value.trim()) {
+                personEl.value = tRes.person;
+              }
+            } catch (eTog) {
+              chk.checked = !newDone;
+              itemEl.classList.toggle('is-done', !newDone);
+              localDone += newDone ? -1 : 1;
+              updatePutzProgress();
+            }
+          });
+        });
+
+        const btnMeta = document.getElementById('btnSavePutzMeta');
+        if (btnMeta) {
+          btnMeta.addEventListener('click', async function() {
+            const personEl = document.getElementById('opsPutzPerson');
+            const remarkEl = document.getElementById('opsPutzRemark');
+            const pVal = personEl ? personEl.value.trim() : '';
+            const rVal = remarkEl ? remarkEl.value.trim() : '';
+            btnMeta.disabled = true;
+            btnMeta.textContent = 'Speichert…';
+            try {
+              const mRes = await window.SonaApi.saveOpsPutzplanMeta(session.standortId, res.dateIso, pVal, rVal);
+              if (mRes && mRes.success) {
+                if (pVal) saveOpsName(session, pVal);
+                if (window.SonaApp && window.SonaApp.toast) window.SonaApp.toast('Putzplan aktualisiert.');
+              }
+            } finally {
+              btnMeta.disabled = false;
+              btnMeta.textContent = 'Name & Bemerkung speichern';
+            }
+          });
+        }
+      }
+
+      pane.querySelectorAll('.ops-todo-day-btn').forEach(function(b) {
+        b.addEventListener('click', function() {
+          loadPutzplanTab(session, b.dataset.putzDate);
+        });
+      });
+      const prevBtn = document.getElementById('btnPutzPrevWeek');
+      const todayBtn = document.getElementById('btnPutzToday');
+      const nextBtn = document.getElementById('btnPutzNextWeek');
+      const reloadBtn = document.getElementById('btnPutzReload');
+      if (prevBtn) prevBtn.addEventListener('click', function() { loadPutzplanTab(session, shiftIsoDateDays(dateIso, -7)); });
+      if (todayBtn) todayBtn.addEventListener('click', function() { loadPutzplanTab(session, todayIsoLocal()); });
+      if (nextBtn) nextBtn.addEventListener('click', function() { loadPutzplanTab(session, shiftIsoDateDays(dateIso, 7)); });
+      if (reloadBtn) reloadBtn.addEventListener('click', function() { loadPutzplanTab(session, dateIso); });
+    } catch (err) {
+      const currentPane = document.getElementById('opsTabPane');
+      if (!currentPane) return;
+      currentPane.innerHTML =
+        '<div class="card">' +
+          '<div class="kicker">Putzplan</div>' +
+          '<p class="module-desc">Verbindungsfehler: ' + esc(err && err.message ? err.message : String(err)) + '</p>' +
+        '</div>';
+    }
+  }
+
   window.SonaOperationsModule = {
     openExternalTab: openExternalTab,
     renderAuswertungInto: function(targetEl, session) {
@@ -1324,15 +1531,7 @@
 
       if (activeSection === 'putzplan') {
         renderSectionWrapper('Putzplan');
-        const pane = document.getElementById('opsTabPane');
-        if (pane) {
-          pane.innerHTML =
-            '<div class="card">' +
-              '<div class="kicker">Operations · In Vorbereitung</div>' +
-              '<h3>Putzplan</h3>' +
-              '<p class="module-desc">Tägliche &amp; wöchentliche Reinigungspläne. Anbindung folgt in Kürze.</p>' +
-            '</div>';
-        }
+        loadPutzplanTab(session, OPS_STATE.selectedPutzplanDate || todayIsoLocal());
         return;
       }
 
