@@ -372,7 +372,9 @@
       if (hasOpTab('reklamation')) {
         opsNavItems.push({ key: 'ops_reklamation', title: 'Reklamation und Beschwerden', pillar: 'OPERATIONS' });
       }
-      opsNavItems.push({ key: 'ops_todo', title: 'To-Do-Liste', pillar: 'OPERATIONS' });
+      if (hasOpTab('todo')) {
+        opsNavItems.push({ key: 'ops_todo', title: 'To-Do-Liste', pillar: 'OPERATIONS' });
+      }
       opsNavItems.push({ key: 'ops_putzplan', title: 'Putzplan', pillar: 'OPERATIONS' });
       if (hasOpTab('mitarbeiterbewertung')) {
         opsNavItems.push({ key: 'ops_ranking', title: 'Mitarbeiter Ranking', pillar: 'OPERATIONS' });

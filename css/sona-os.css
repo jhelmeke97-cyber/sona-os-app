@@ -1631,3 +1631,95 @@ textarea.ops-textarea {
   border-radius: var(--os-radius);
   background: rgba(245, 236, 215, 0.03);
 }
+
+/* Tages-To-Do-Liste */
+.ops-todo-days {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 6px;
+  margin-bottom: 14px;
+}
+.ops-todo-day-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 8px 6px;
+  border: 1px solid var(--os-line);
+  border-radius: var(--os-radius);
+  background: var(--os-black);
+  color: var(--os-silk);
+  cursor: pointer;
+  font-family: var(--font-sans);
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.ops-todo-day-btn:hover {
+  border-color: var(--os-line-strong);
+  color: var(--os-cream);
+}
+.ops-todo-day-btn.active {
+  background: var(--os-cream);
+  color: var(--os-black);
+  border-color: var(--os-cream);
+}
+.ops-todo-day-btn .day-count {
+  font-size: 10px;
+  opacity: 0.8;
+}
+.ops-todo-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.ops-todo-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--os-line);
+  border-radius: var(--os-radius);
+  background: rgba(245, 236, 215, 0.02);
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.ops-todo-item:hover {
+  border-color: var(--os-line-strong);
+  background: rgba(245, 236, 215, 0.05);
+}
+.ops-todo-item.is-done {
+  opacity: 0.6;
+}
+.ops-todo-item.is-done .ops-todo-text {
+  text-decoration: line-through;
+}
+.ops-todo-item input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--os-cream);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.ops-todo-text {
+  font-size: 13px;
+  color: var(--os-cream);
+  line-height: 1.35;
+}
+.ops-todo-progress-track {
+  width: 100%;
+  height: 6px;
+  background: var(--os-black);
+  border-radius: 999px;
+  overflow: hidden;
+  border: 1px solid var(--os-line);
+  margin-bottom: 14px;
+}
+.ops-todo-progress-fill {
+  height: 100%;
+  background: var(--os-cream);
+  transition: width 0.2s ease;
+}
+@media (max-width: 720px) {
+  .ops-todo-days {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}

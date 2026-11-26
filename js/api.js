@@ -234,6 +234,30 @@
       standortId: standortId,
       member: member || {}
     }),
+    getOpsTodoDay: (standortId, dateIso, forceRefresh) => callPost('os_ops_todo_day', {
+      standortId: standortId,
+      date: dateIso || '',
+      forceRefresh: !!forceRefresh
+    }),
+    toggleOpsTodoTask: (standortId, dateIso, row, checkCol, done) => callPost('os_ops_todo_toggle', {
+      standortId: standortId,
+      date: dateIso || '',
+      row: row,
+      checkCol: checkCol,
+      done: !!done
+    }),
+    addOpsTodoTask: (standortId, dateIso, shift, text) => callPost('os_ops_todo_add', {
+      standortId: standortId,
+      date: dateIso || '',
+      shift: shift || 'Früh',
+      text: text || ''
+    }),
+    saveOpsTodoNote: (standortId, dateIso, rating, note) => callPost('os_ops_todo_note', {
+      standortId: standortId,
+      date: dateIso || '',
+      rating: rating,
+      note: note
+    }),
     getModuleLaunchUrl: (moduleKey, standortId) => callPost('os_module_launch', {
       moduleKey: moduleKey,
       standortId: standortId

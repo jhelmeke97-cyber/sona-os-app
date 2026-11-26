@@ -5,6 +5,7 @@
     activeTab: 'reklamation',
     selectedMonth: '',
     selectedPeriod: '',
+    selectedTodoDate: '',
     ratingSubTab: 'staff',
     meta: null,
     selectedArt: 'Gäste im Haus',
@@ -891,6 +892,292 @@
     }
   }
 
+  function shiftIsoDateDays(dateIso, deltaDays) {
+    const base = dateIso ? new Date(dateIso + 'T12:00:00') : new Date();
+    base.setDate(base.getDate() + deltaDays);
+    return base.getFullYear() + '-' + String(base.getMonth() + 1).padStart(2, '0') + '-' + String(base.getDate()).padStart(2, '0');
+  }
+
+  async function loadTodoTab(session, targetDateIso, forceRefresh) {
+    const pane = document.getElementById('opsTabPane');
+    if (!pane) return;
+    const dateIso = targetDateIso || OPS_STATE.selectedTodoDate || todayIsoLocal();
+    OPS_STATE.selectedTodoDate = dateIso;
+
+    pane.innerHTML =
+      '<div class="card">' +
+        '<div class="kicker">To-Do-Liste · ' + esc(session.standortName) + '</div>' +
+        '<p class="module-desc">Lade Tagesaufgaben …</p>' +
+      '</div>';
+
+    try {
+      const res = await window.SonaApi.getOpsTodoDay(session.standortId, dateIso, !!forceRefresh);
+      if (!document.getElementById('opsTabPane')) return;
+
+      if (!res || !res.success) {
+        pane.innerHTML =
+          '<div class="card">' +
+            '<div class="kicker">To-Do-Liste</div>' +
+            '<h3>Tagesaufgaben konnten nicht geladen werden</h3>' +
+            '<p class="module-desc">' + esc((res && res.error) || 'Unbekannter Fehler.') + '</p>' +
+          '</div>';
+        return;
+      }
+
+      if (res.status === 'IN_VORBEREITUNG') {
+        pane.innerHTML =
+          '<div class="card">' +
+            '<div class="kicker">To-Do-Liste · ' + esc(session.standortName) + '</div>' +
+            '<h3>Noch nicht für diesen Standort verknüpft</h3>' +
+            '<p class="module-desc">' + esc(res.message || 'Für diesen Standort ist noch kein To-Do-Ordner hinterlegt.') + '</p>' +
+          '</div>';
+        return;
+      }
+
+      const weekDays = Array.isArray(res.weekDays) ? res.weekDays : [];
+      const dayButtonsHtml = weekDays.length
+        ? '<div class="ops-todo-days">' +
+            weekDays.map(function(d) {
+              const active = d.dateIso === res.dateIso ? ' active' : '';
+              const cntTxt = d.total !== undefined ? (d.done + '/' + d.total) : d.dateShort;
+              return '<button type="button" class="ops-todo-day-btn' + active + '" data-todo-date="' + esc(d.dateIso) + '">' +
+                '<b>' + esc(d.dayKey) + '</b>' +
+                '<span class="day-count">' + esc(d.dateShort) + '</span>' +
+                (d.total !== undefined ? '<span class="day-count">' + esc(cntTxt) + '</span>' : '') +
+              '</button>';
+            }).join('') +
+          '</div>'
+        : '';
+
+      if (res.status === 'KEIN_BLATT') {
+        pane.innerHTML =
+          '<div class="card">' +
+            '<div class="card-head">' +
+              '<div>' +
+                '<div class="kicker">' + esc(res.kwLabel || '') + '</div>' +
+                '<h3>To-Do-Liste · ' + esc(res.dayLabel || '') + '</h3>' +
+              '</div>' +
+              '<div style="display:flex;gap:6px;flex-wrap:wrap;">' +
+                '<button type="button" id="btnTodoPrevWeek" class="btn btn-sm">← Vorwoche</button>' +
+                '<button type="button" id="btnTodoToday" class="btn btn-sm">Heute</button>' +
+                '<button type="button" id="btnTodoNextWeek" class="btn btn-sm">Nächste Woche →</button>' +
+              '</div>' +
+            '</div>' +
+            dayButtonsHtml +
+            '<p class="module-desc">' + esc(res.message || 'Für diese Kalenderwoche liegt noch keine Liste vor.') + '</p>' +
+          '</div>';
+      } else {
+        const tasks = Array.isArray(res.tasks) ? res.tasks : [];
+        const fruehTasks = tasks.filter(function(t) { return t.shift !== 'Spät'; });
+        const spaetTasks = tasks.filter(function(t) { return t.shift === 'Spät'; });
+
+        const renderShiftBlock = function(title, list) {
+          if (!list.length) return '';
+          return '<div style="margin-bottom:14px;">' +
+            '<div class="kicker" style="margin-bottom:8px;">' + esc(title) + '</div>' +
+            '<div class="ops-todo-list">' +
+              list.map(function(t) {
+                return '<label class="ops-todo-item' + (t.done ? ' is-done' : '') + '" data-row="' + esc(t.row) + '" data-col="' + esc(t.checkCol) + '">' +
+                  '<input type="checkbox" class="ops-todo-chk"' + (t.done ? ' checked' : '') + '>' +
+                  '<span class="ops-todo-text">' + esc(t.text) + '</span>' +
+                '</label>';
+              }).join('') +
+            '</div>' +
+          '</div>';
+        };
+
+        const noteBlockHtml = (res.hasRatingRow || res.hasNoteRow)
+          ? '<div class="card" style="margin-top:14px;">' +
+              '<div class="card-head"><div><div class="kicker">Tagesabschluss</div><h3>Bewertung &amp; Notiz (' + esc(res.dayLabel) + ')</h3></div></div>' +
+              (res.hasRatingRow
+                ? '<div class="form-field">' +
+                    '<label class="kicker">Tagesbewertung</label>' +
+                    '<div class="ops-choice-group" id="opsTodoRatingGroup">' +
+                      ['Gut', 'Mittel', 'Schlecht'].map(function(r) {
+                        return '<button type="button" class="ops-choice-btn' + (res.dayRating === r ? ' active' : '') + '" data-rating="' + esc(r) + '">' + esc(r) + '</button>';
+                      }).join('') +
+                    '</div>' +
+                  '</div>'
+                : '') +
+              (res.hasNoteRow
+                ? '<div class="form-field">' +
+                    '<label class="kicker" for="opsTodoNoteInput">Tagesnotiz</label>' +
+                    '<textarea id="opsTodoNoteInput" class="input-control ops-textarea" rows="2" maxlength="1000" placeholder="Hinweise für die nächste Schicht …">' + esc(res.dayNote || '') + '</textarea>' +
+                  '</div>'
+                : '') +
+              '<div style="display:flex;justify-content:flex-end;">' +
+                '<button type="button" id="btnSaveTodoNote" class="btn btn-primary btn-sm">Notiz speichern</button>' +
+              '</div>' +
+            '</div>'
+          : '';
+
+        pane.innerHTML =
+          '<div class="card">' +
+            '<div class="card-head">' +
+              '<div>' +
+                '<div class="kicker">' + esc(res.kwLabel || '') + '</div>' +
+                '<h3>' + esc(res.dayLabel) + ' · ' + esc(res.dateShort || res.dateIso) + '</h3>' +
+              '</div>' +
+              '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">' +
+                '<span id="opsTodoQuoteBadge" class="badge">' + esc(res.doneCount || 0) + ' / ' + esc(res.totalCount || 0) + ' (' + esc(res.quotePct || 0) + ' %)</span>' +
+                '<button type="button" id="btnTodoPrevWeek" class="btn btn-sm">←</button>' +
+                '<button type="button" id="btnTodoToday" class="btn btn-sm">Heute</button>' +
+                '<button type="button" id="btnTodoNextWeek" class="btn btn-sm">→</button>' +
+                '<button type="button" id="btnTodoReload" class="btn btn-sm">Aktualisieren</button>' +
+              '</div>' +
+            '</div>' +
+            dayButtonsHtml +
+            '<div class="ops-todo-progress-track"><div id="opsTodoProgressFill" class="ops-todo-progress-fill" style="width:' + esc(res.quotePct || 0) + '%;"></div></div>' +
+            '<div class="ops-add-member-bar">' +
+              '<input type="text" id="opsTodoNewText" class="input-control" style="height:34px;flex:1;min-width:200px;" maxlength="200" placeholder="Neue Tagesaufgabe für ' + esc(res.dayLabel) + ' …">' +
+              '<select id="opsTodoNewShift" class="input-control" style="height:34px;width:auto;">' +
+                '<option value="Früh">Frühschicht</option>' +
+                '<option value="Spät">Spätschicht</option>' +
+              '</select>' +
+              '<button type="button" id="btnAddTodoTask" class="btn btn-primary btn-sm">+ Hinzufügen</button>' +
+            '</div>' +
+            '<div id="opsTodoMsg" style="margin-bottom:10px;font-size:12px;"></div>' +
+            (tasks.length
+              ? renderShiftBlock('Frühschicht', fruehTasks) + renderShiftBlock('Spätschicht', spaetTasks)
+              : '<p class="module-desc">Für ' + esc(res.dayLabel) + ' sind noch keine Aufgaben eingetragen.</p>') +
+          '</div>' +
+          noteBlockHtml;
+
+        // Checkbox-Toggle Events
+        let localDone = res.doneCount || 0;
+        const localTotal = res.totalCount || 0;
+        const updateProgressUi = function() {
+          const pct = localTotal > 0 ? Math.round((localDone / localTotal) * 100) : 0;
+          const badge = document.getElementById('opsTodoQuoteBadge');
+          const fill = document.getElementById('opsTodoProgressFill');
+          if (badge) badge.textContent = localDone + ' / ' + localTotal + ' (' + pct + ' %)';
+          if (fill) fill.style.width = pct + '%';
+        };
+
+        pane.querySelectorAll('.ops-todo-item').forEach(function(itemEl) {
+          const chk = itemEl.querySelector('.ops-todo-chk');
+          if (!chk) return;
+          chk.addEventListener('change', async function() {
+            const newDone = !!chk.checked;
+            itemEl.classList.toggle('is-done', newDone);
+            localDone += newDone ? 1 : -1;
+            updateProgressUi();
+            try {
+              const tRes = await window.SonaApi.toggleOpsTodoTask(
+                session.standortId,
+                res.dateIso,
+                parseInt(itemEl.dataset.row, 10),
+                parseInt(itemEl.dataset.col, 10),
+                newDone
+              );
+              if (!tRes || !tRes.success) {
+                chk.checked = !newDone;
+                itemEl.classList.toggle('is-done', !newDone);
+                localDone += newDone ? -1 : 1;
+                updateProgressUi();
+                const msgEl = document.getElementById('opsTodoMsg');
+                if (msgEl) { msgEl.style.color = '#f87171'; msgEl.textContent = (tRes && tRes.error) || 'Speichern fehlgeschlagen.'; }
+              }
+            } catch (eTog) {
+              chk.checked = !newDone;
+              itemEl.classList.toggle('is-done', !newDone);
+              localDone += newDone ? -1 : 1;
+              updateProgressUi();
+            }
+          });
+        });
+
+        // Neue Tagesaufgabe hinzufügen
+        const addTaskFn = async function() {
+          const txtEl = document.getElementById('opsTodoNewText');
+          const shiftEl = document.getElementById('opsTodoNewShift');
+          const btn = document.getElementById('btnAddTodoTask');
+          const msgEl = document.getElementById('opsTodoMsg');
+          const val = txtEl ? txtEl.value.trim() : '';
+          if (val.length < 2) {
+            if (msgEl) { msgEl.style.color = '#f87171'; msgEl.textContent = 'Bitte eine Aufgabe eingeben.'; }
+            return;
+          }
+          if (btn) { btn.disabled = true; btn.textContent = 'Speichert…'; }
+          try {
+            const addRes = await window.SonaApi.addOpsTodoTask(session.standortId, res.dateIso, shiftEl ? shiftEl.value : 'Früh', val);
+            if (!addRes || !addRes.success) {
+              if (msgEl) { msgEl.style.color = '#f87171'; msgEl.textContent = (addRes && addRes.error) || 'Hinzufügen fehlgeschlagen.'; }
+              return;
+            }
+            if (window.SonaApp && window.SonaApp.toast) window.SonaApp.toast('Tagesaufgabe hinzugefügt.');
+            loadTodoTab(session, res.dateIso, false);
+          } catch (eAdd) {
+            if (msgEl) { msgEl.style.color = '#f87171'; msgEl.textContent = 'Verbindungsfehler.'; }
+          } finally {
+            if (btn) { btn.disabled = false; btn.textContent = '+ Hinzufügen'; }
+          }
+        };
+        const btnAdd = document.getElementById('btnAddTodoTask');
+        if (btnAdd) btnAdd.addEventListener('click', addTaskFn);
+        const newTxtEl = document.getElementById('opsTodoNewText');
+        if (newTxtEl) {
+          newTxtEl.addEventListener('keydown', function(ev) {
+            if (ev.key === 'Enter') { ev.preventDefault(); addTaskFn(); }
+          });
+        }
+
+        // Tagesbewertung & Notiz speichern
+        let selectedRating = res.dayRating || '';
+        const ratingGrp = document.getElementById('opsTodoRatingGroup');
+        if (ratingGrp) {
+          ratingGrp.querySelectorAll('.ops-choice-btn').forEach(function(b) {
+            b.addEventListener('click', function() {
+              ratingGrp.querySelectorAll('.ops-choice-btn').forEach(function(x) { x.classList.remove('active'); });
+              b.classList.add('active');
+              selectedRating = b.dataset.rating || '';
+            });
+          });
+        }
+        const btnNote = document.getElementById('btnSaveTodoNote');
+        if (btnNote) {
+          btnNote.addEventListener('click', async function() {
+            const noteEl = document.getElementById('opsTodoNoteInput');
+            btnNote.disabled = true;
+            btnNote.textContent = 'Speichert…';
+            try {
+              const nRes = await window.SonaApi.saveOpsTodoNote(session.standortId, res.dateIso, selectedRating, noteEl ? noteEl.value : undefined);
+              if (nRes && nRes.success && window.SonaApp && window.SonaApp.toast) {
+                window.SonaApp.toast('Tagesnotiz gespeichert.');
+              }
+            } finally {
+              btnNote.disabled = false;
+              btnNote.textContent = 'Notiz speichern';
+            }
+          });
+        }
+      }
+
+      // Navigation Events (Tage & Wochen)
+      pane.querySelectorAll('.ops-todo-day-btn').forEach(function(b) {
+        b.addEventListener('click', function() {
+          loadTodoTab(session, b.dataset.todoDate, false);
+        });
+      });
+      const prevBtn = document.getElementById('btnTodoPrevWeek');
+      const todayBtn = document.getElementById('btnTodoToday');
+      const nextBtn = document.getElementById('btnTodoNextWeek');
+      const reloadBtn = document.getElementById('btnTodoReload');
+      if (prevBtn) prevBtn.addEventListener('click', function() { loadTodoTab(session, shiftIsoDateDays(dateIso, -7), false); });
+      if (todayBtn) todayBtn.addEventListener('click', function() { loadTodoTab(session, todayIsoLocal(), false); });
+      if (nextBtn) nextBtn.addEventListener('click', function() { loadTodoTab(session, shiftIsoDateDays(dateIso, 7), false); });
+      if (reloadBtn) reloadBtn.addEventListener('click', function() { loadTodoTab(session, dateIso, true); });
+    } catch (err) {
+      const currentPane = document.getElementById('opsTabPane');
+      if (!currentPane) return;
+      currentPane.innerHTML =
+        '<div class="card">' +
+          '<div class="kicker">To-Do-Liste</div>' +
+          '<p class="module-desc">Verbindungsfehler: ' + esc(err && err.message ? err.message : String(err)) + '</p>' +
+        '</div>';
+    }
+  }
+
   window.SonaOperationsModule = {
     openExternalTab: openExternalTab,
     renderAuswertungInto: function(targetEl, session) {
@@ -1031,15 +1318,7 @@
 
       if (activeSection === 'todo') {
         renderSectionWrapper('To-Do-Liste');
-        const pane = document.getElementById('opsTabPane');
-        if (pane) {
-          pane.innerHTML =
-            '<div class="card">' +
-              '<div class="kicker">Operations · In Vorbereitung</div>' +
-              '<h3>To-Do-Liste</h3>' +
-              '<p class="module-desc">Aufgaben für Küche, Bar &amp; Service. Anbindung folgt in Kürze.</p>' +
-            '</div>';
-        }
+        loadTodoTab(session, OPS_STATE.selectedTodoDate || todayIsoLocal(), false);
         return;
       }
 
