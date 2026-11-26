@@ -341,6 +341,18 @@
       return;
     }
 
+    if (CTRL_STATE.activeSubTab === 'SCHWUND_BRUCH') {
+      if (window.SonaOperationsModule && typeof window.SonaOperationsModule.renderAuswertungInto === 'function') {
+        window.SonaOperationsModule.renderAuswertungInto(slot, {
+          standortId: CTRL_STATE.standortId,
+          standortName: CTRL_STATE.standortName
+        });
+      } else {
+        slot.innerHTML = '<div class="card"><p class="module-desc">Schwund- &amp; Bruch-Auswertung konnte nicht geladen werden.</p></div>';
+      }
+      return;
+    }
+
     const d = CTRL_STATE.currentData;
     if (!d) return;
     if (CTRL_STATE.activeSubTab === 'GESAMT') {
@@ -388,6 +400,7 @@
         '<button type="button" class="bv-tab-btn" data-tab="WARENGRUPPE">Warengruppen</button>' +
         '<button type="button" class="bv-tab-btn" data-tab="ARTIKEL">Artikel</button>' +
         '<button type="button" class="bv-tab-btn" data-tab="PROGNOSE">Preis-Prognose</button>' +
+        '<button type="button" class="bv-tab-btn" data-tab="SCHWUND_BRUCH">Schwund &amp; Bruch</button>' +
       '</div>' +
       '<div id="ctrlSubTabContent"></div>';
 
@@ -423,7 +436,7 @@
       const btn = ev.target.closest('button[data-tab]');
       if (!btn) return;
       CTRL_STATE.activeSubTab = btn.dataset.tab;
-      if (CTRL_STATE.activeSubTab === 'PROGNOSE') {
+      if (CTRL_STATE.activeSubTab === 'PROGNOSE' || CTRL_STATE.activeSubTab === 'SCHWUND_BRUCH') {
         renderTabArea();
       } else {
         loadAnalyse(false);

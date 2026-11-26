@@ -1522,9 +1522,53 @@ textarea.ops-textarea {
   color: var(--os-cream);
 }
 
+.os-period-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 7px 18px;
+  background: var(--os-black);
+  border-bottom: 1px solid var(--os-line);
+  font-size: 11px;
+  color: var(--os-silk);
+  min-height: 36px;
+  flex-shrink: 0;
+}
+.os-period-bar-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.os-period-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--os-line);
+  background: var(--os-surface);
+  color: var(--os-cream);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+.os-period-chip-accent {
+  border-color: var(--os-line-strong);
+  background: rgba(245, 236, 215, 0.12);
+  color: var(--os-cream);
+  font-weight: 700;
+}
+.os-period-bar-right {
+  font-size: 11px;
+  color: var(--os-silk);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
 .os-frame-host {
   width: 100%;
-  height: 100vh;
+  height: calc(100vh - 36px);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -1532,7 +1576,58 @@ textarea.ops-textarea {
 }
 
 @media (max-width: 860px) {
-  .os-frame-host {
-    height: calc(100vh - 54px);
+  .os-period-bar {
+    padding: 6px 12px;
   }
+  .os-frame-host {
+    height: calc(100vh - 90px);
+  }
+}
+
+/* Kompakte Mitarbeiter-Ranking Tabelle mit Reglern */
+.ops-rating-table th,
+.ops-rating-table td {
+  padding: 8px 8px;
+  font-size: 11.5px;
+}
+.ops-rating-table tr.is-dirty td {
+  background: rgba(245, 236, 215, 0.06);
+}
+.ops-slider-cell {
+  min-width: 108px;
+}
+.ops-slider-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.ops-slider {
+  width: 74px;
+  accent-color: var(--os-cream);
+  cursor: pointer;
+}
+.ops-slider-val {
+  min-width: 24px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--os-cream);
+  text-align: right;
+}
+.ops-rating-inline-input {
+  width: 100%;
+  min-width: 140px;
+  height: 30px;
+  padding: 4px 8px;
+  font-size: 11.5px;
+}
+.ops-add-member-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+  border: 1px solid var(--os-line);
+  border-radius: var(--os-radius);
+  background: rgba(245, 236, 215, 0.03);
 }

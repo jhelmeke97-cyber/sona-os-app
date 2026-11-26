@@ -73,20 +73,20 @@
     }).join('');
   }
 
-  async function loadMonthlySummary(session, forceRefresh, periodKey) {
-    const slot = document.getElementById('opsSchwundKpiSlot');
+  async function loadMonthlySummary(session, forceRefresh, periodKey, targetEl) {
+    const slot = targetEl || document.getElementById('opsSchwundKpiSlot');
     if (!slot) return;
     const chosenPeriod = periodKey !== undefined ? periodKey : (OPS_STATE.selectedPeriod || '');
     slot.innerHTML =
       '<div class="card">' +
         '<div class="kicker">Schwund- &amp; Bruch-Auswertung · ' + esc(session.standortName) + '</div>' +
-        '<p class="module-desc">Lade Auswertung aus SCHWUND_NEU &amp; BRUCH_NEU …</p>' +
+        '<p class="module-desc">Lade Auswertung …</p>' +
       '</div>';
 
     try {
       const res = await window.SonaApi.getOpsMonthlySummary(session.standortId, !!forceRefresh, chosenPeriod);
-      const currentSlot = document.getElementById('opsSchwundKpiSlot');
-      if (!currentSlot) return;
+      const currentSlot = targetEl || document.getElementById('opsSchwundKpiSlot');
+      if (!currentSlot || !document.body.contains(currentSlot)) return;
 
       if (!res || res.success === false) {
         currentSlot.innerHTML =
@@ -192,21 +192,21 @@
           '</tbody></table></div>' +
         '</div>';
 
-      const periodSel = document.getElementById('opsStatsPeriodSelect');
+      const periodSel = currentSlot.querySelector('#opsStatsPeriodSelect');
       if (periodSel) {
         periodSel.addEventListener('change', function() {
           OPS_STATE.selectedPeriod = periodSel.value;
-          loadMonthlySummary(session, false, periodSel.value);
+          loadMonthlySummary(session, false, periodSel.value, currentSlot);
         });
       }
-      const reloadBtn = document.getElementById('btnReloadOpsSummary');
+      const reloadBtn = currentSlot.querySelector('#btnReloadOpsSummary');
       if (reloadBtn) {
         reloadBtn.addEventListener('click', function() {
-          loadMonthlySummary(session, true, OPS_STATE.selectedPeriod);
+          loadMonthlySummary(session, true, OPS_STATE.selectedPeriod, currentSlot);
         });
       }
     } catch (err) {
-      const currentSlot = document.getElementById('opsSchwundKpiSlot');
+      const currentSlot = targetEl || document.getElementById('opsSchwundKpiSlot');
       if (!currentSlot) return;
       currentSlot.innerHTML =
         '<div class="card">' +
@@ -305,8 +305,8 @@
         '<div class="card" style="margin-bottom:16px;">' +
           '<div class="card-head">' +
             '<div>' +
-              '<div class="kicker">Gäste &amp; Lieferung · Direktspeicherung in Google Sheets</div>' +
-              '<h3>Gäste-Reklamation erfassen</h3>' +
+              '<div class="kicker">Operations · ' + esc(session.standortName) + '</div>' +
+              '<h3>Reklamation und Beschwerden</h3>' +
             '</div>' +
             '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">' +
               '<select id="opsRekMonthSelect" class="input-control" style="height:32px;width:auto;min-width:130px;">' +
@@ -348,9 +348,8 @@
             '<textarea id="opsRekBemerkung" class="input-control ops-textarea" rows="4" maxlength="2000" placeholder="z. B. T23: Gericht zu trocken / Wartezeit – entschuldigt, Küche informiert, Getränk aufs Haus …"></textarea>' +
           '</div>' +
 
-          '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">' +
-            '<span class="kicker" style="text-transform:none;letter-spacing:0.02em;">Wird direkt im passenden Monatsblatt (Spalten Datum, Art, Bereich, Bemerkung, Name) gespeichert.</span>' +
-            '<button type="button" id="btnSaveReklamation" class="btn btn-primary">Reklamation speichern</button>' +
+          '<div style="display:flex;justify-content:flex-end;align-items:center;gap:10px;flex-wrap:wrap;">' +
+            '<button type="button" id="btnSaveReklamation" class="btn btn-primary">Eintrag speichern</button>' +
           '</div>' +
         '</div>' +
 
@@ -492,11 +491,20 @@
     }
   }
 
-  function starShortLabel(starVal) {
+  const STAR_BY_NUM = [
+    '☆☆☆☆☆ (0)',
+    '★☆☆☆☆ (1)',
+    '★★☆☆☆ (2)',
+    '★★★☆☆ (3)',
+    '★★★★☆ (4)',
+    '★★★★★ (5)'
+  ];
+
+  function starToNum(starVal) {
     const s = String(starVal || '');
-    if (s.toLowerCase().indexOf('außer') !== -1 || s.toLowerCase().indexOf('ausser') !== -1) return 'A.W.';
     const m = s.match(/\((\d)\)/);
-    return m ? (m[1] + '★') : '–';
+    if (m) return Math.max(0, Math.min(5, parseInt(m[1], 10)));
+    return 2;
   }
 
   function calcClientAvgScore(stars, isAw) {
@@ -515,13 +523,14 @@
     return cnt ? (sum / cnt).toFixed(1) : '-';
   }
 
-  function renderStarButtons(currentVal, starOptions, disabledAttr) {
-    return '<div class="ops-choice-group" style="gap:4px;">' +
-      (starOptions || []).map(function(opt) {
-        const active = opt === currentVal ? ' active' : '';
-        return '<button type="button" class="ops-choice-btn ops-star-pick' + active + '" data-star="' + esc(opt) + '" style="padding:5px 8px;font-size:11px;"' + disabledAttr + '>' + esc(starShortLabel(opt)) + '</button>';
-      }).join('') +
-    '</div>';
+  function renderSliderCell(val, cIdx, disabledAttr) {
+    const num = starToNum(val);
+    return '<td class="ops-slider-cell">' +
+      '<div class="ops-slider-wrap">' +
+        '<input type="range" class="ops-slider" min="0" max="5" step="1" value="' + num + '" data-crit-idx="' + cIdx + '"' + disabledAttr + '>' +
+        '<span class="ops-slider-val tabular">' + num + '★</span>' +
+      '</div>' +
+    '</td>';
   }
 
   async function loadRatingTab(session) {
@@ -530,8 +539,8 @@
 
     pane.innerHTML =
       '<div class="card">' +
-        '<div class="kicker">Mitarbeiterbewertung · ' + esc(session.standortName) + '</div>' +
-        '<p class="module-desc">Lade Personal_Scorecard &amp; Azubi_Entwicklung aus dem SONA HUB …</p>' +
+        '<div class="kicker">Mitarbeiter Ranking · ' + esc(session.standortName) + '</div>' +
+        '<p class="module-desc">Lade Tabelle aus SONA HUB …</p>' +
       '</div>';
 
     try {
@@ -541,8 +550,8 @@
       if (!res || !res.success) {
         pane.innerHTML =
           '<div class="card">' +
-            '<div class="kicker">Mitarbeiterbewertung</div>' +
-            '<h3>SONA HUB konnte nicht geladen werden</h3>' +
+            '<div class="kicker">Mitarbeiter Ranking</div>' +
+            '<h3>Tabelle konnte nicht geladen werden</h3>' +
             '<p class="module-desc">' + esc((res && res.error) || 'Unbekannter Fehler.') + '</p>' +
           '</div>';
         return;
@@ -551,212 +560,323 @@
       if (res.status === 'IN_VORBEREITUNG') {
         pane.innerHTML =
           '<div class="card">' +
-            '<div class="kicker">Mitarbeiterbewertung · ' + esc(session.standortName) + '</div>' +
+            '<div class="kicker">Mitarbeiter Ranking · ' + esc(session.standortName) + '</div>' +
             '<h3>Noch nicht für diesen Standort verknüpft</h3>' +
             '<p class="module-desc">' + esc(res.message || 'Für diesen Standort ist noch kein SONA HUB hinterlegt.') + '</p>' +
           '</div>';
         return;
       }
 
-      const starOptions = Array.isArray(res.starOptions) ? res.starOptions : [];
-      const staffCriteria = Array.isArray(res.staffCriteria) ? res.staffCriteria : [];
-      const azubiCriteria = Array.isArray(res.azubiCriteria) ? res.azubiCriteria : [];
+      const staffCriteria = Array.isArray(res.staffCriteria) ? res.staffCriteria : ['Fach/Service', 'Zuverl.', 'Team', 'Fleiß'];
+      const azubiCriteria = Array.isArray(res.azubiCriteria) ? res.azubiCriteria : ['Zuverl.', 'Fleiß', 'Service', 'Sprache'];
       const azubiStatuses = Array.isArray(res.azubiStatusOptions) ? res.azubiStatusOptions : ['Vollstaendig', 'Rueckstand', 'Fehlt'];
       const staffList = Array.isArray(res.staff) ? res.staff : [];
       const azubiList = Array.isArray(res.azubis) ? res.azubis : [];
       const disabledAttr = res.canWrite ? '' : ' disabled';
+      const dirtyMap = {};
+      let showAddForm = false;
+
+      const updateSaveButtonLabel = function() {
+        const btn = document.getElementById('btnSaveAllRatings');
+        if (!btn) return;
+        const count = Object.keys(dirtyMap).length;
+        btn.textContent = count > 0 ? ('Änderungen speichern & Sync (' + count + ')') : 'Speichern & Sync';
+        btn.disabled = !res.canWrite || count === 0;
+      };
 
       const renderRatingBody = function() {
         const isStaff = OPS_STATE.ratingSubTab !== 'azubi';
         const list = isStaff ? staffList : azubiList;
         const criteria = isStaff ? staffCriteria : azubiCriteria;
+        const typeKey = isStaff ? 'staff' : 'azubi';
 
-        let cardsHtml = '';
-        if (!list.length) {
-          cardsHtml = '<div class="card"><p class="module-desc">Keine Einträge in diesem Blatt vorhanden.</p></div>';
+        const addFormHtml = (res.canWrite && showAddForm)
+          ? '<div class="ops-add-member-bar">' +
+              '<input type="text" id="opsAddMemberName" class="input-control" style="height:32px;max-width:200px;" maxlength="80" placeholder="' + (isStaff ? 'Name Mitarbeiter' : 'Name Azubi') + '">' +
+              '<select id="opsAddMemberDept" class="input-control" style="height:32px;width:auto;">' +
+                '<option value="Service">Service</option>' +
+                '<option value="Kueche">Küche</option>' +
+                '<option value="Bar">Bar</option>' +
+              '</select>' +
+              (!isStaff
+                ? '<select id="opsAddAzubiStatus" class="input-control" style="height:32px;width:auto;">' +
+                    azubiStatuses.map(function(st) { return '<option value="' + esc(st) + '">' + esc(st) + '</option>'; }).join('') +
+                  '</select>'
+                : '') +
+              '<button type="button" id="btnConfirmAddMember" class="btn btn-primary btn-sm">Anlegen</button>' +
+              '<button type="button" id="btnCancelAddMember" class="btn btn-sm">Abbrechen</button>' +
+            '</div>'
+          : '';
+
+        let tableHtml = '';
+        if (isStaff) {
+          const rowsHtml = list.length
+            ? list.map(function(item, idx) {
+                const key = 'staff_' + item.row;
+                const dirtyCls = dirtyMap[key] ? ' is-dirty' : '';
+                return '<tr class="ops-rating-row' + dirtyCls + '" data-type="staff" data-idx="' + idx + '" data-row="' + esc(item.row) + '">' +
+                  '<td style="white-space:nowrap;">' + esc(item.dept || 'Service') + '</td>' +
+                  '<td style="white-space:nowrap;"><b>' + esc(item.name) + '</b></td>' +
+                  renderSliderCell(item.stars[0], 0, disabledAttr) +
+                  renderSliderCell(item.stars[1], 1, disabledAttr) +
+                  renderSliderCell(item.stars[2], 2, disabledAttr) +
+                  renderSliderCell(item.stars[3], 3, disabledAttr) +
+                  '<td class="tabular"><span class="badge ops-row-score">' + esc(item.score || '-') + '</span></td>' +
+                  '<td><input type="text" class="input-control ops-rating-inline-input ops-rating-notes" maxlength="2000" value="' + esc(item.notes || '') + '" placeholder="Notiz …"' + disabledAttr + '></td>' +
+                  '<td class="chk-cell"><input type="checkbox" class="ops-rating-aw"' + (item.isAw ? ' checked' : '') + disabledAttr + ' title="Außer Wertung"></td>' +
+                '</tr>';
+              }).join('')
+            : '<tr><td colspan="9">Keine Mitarbeiter vorhanden.</td></tr>';
+
+          tableHtml =
+            '<div class="table-wrap"><table class="ops-rating-table"><thead><tr>' +
+              '<th>Bereich</th><th>Mitarbeiter</th>' +
+              criteria.map(function(c) { return '<th>' + esc(c) + '</th>'; }).join('') +
+              '<th>Ø</th><th>Notizen</th><th>A.W.</th>' +
+            '</tr></thead><tbody>' + rowsHtml + '</tbody></table></div>';
         } else {
-          cardsHtml = list.map(function(item, idx) {
-            const critHtml = criteria.map(function(critLabel, cIdx) {
-              return '<div class="form-field" style="margin-bottom:8px;" data-crit-idx="' + cIdx + '">' +
-                '<label class="kicker" style="display:block;margin-bottom:4px;">' + esc(critLabel) + '</label>' +
-                renderStarButtons(item.stars[cIdx] || 'Außer Wertung', starOptions, disabledAttr) +
-              '</div>';
-            }).join('');
-
-            const extraHtml = isStaff
-              ? '<div class="form-field">' +
-                  '<label class="kicker">Was lief gut? / Was lief schlecht? (Details &amp; Notizen)</label>' +
-                  '<textarea class="input-control ops-textarea ops-rating-notes" rows="2" maxlength="2000" placeholder="Beobachtungen, Stärken, Hinweise …"' + disabledAttr + '>' + esc(item.notes || '') + '</textarea>' +
-                '</div>' +
-                '<label style="display:inline-flex;align-items:center;gap:8px;font-size:12px;color:var(--os-silk);cursor:pointer;">' +
-                  '<input type="checkbox" class="ops-rating-aw"' + (item.isAw ? ' checked' : '') + disabledAttr + '> Außer Wertung (nicht in Team-Score einbeziehen)' +
-                '</label>'
-              : '<div class="form-field">' +
-                  '<label class="kicker">Berichtsheft-Status</label>' +
-                  '<select class="input-control ops-rating-status" style="height:34px;"' + disabledAttr + '>' +
+          const rowsHtml = list.length
+            ? list.map(function(item, idx) {
+                const key = 'azubi_' + item.row;
+                const dirtyCls = dirtyMap[key] ? ' is-dirty' : '';
+                return '<tr class="ops-rating-row' + dirtyCls + '" data-type="azubi" data-idx="' + idx + '" data-row="' + esc(item.row) + '">' +
+                  '<td style="white-space:nowrap;"><b>' + esc(item.name) + '</b></td>' +
+                  '<td style="white-space:nowrap;">' + esc(item.dept || 'Service') + '</td>' +
+                  '<td><select class="input-control ops-rating-status" style="height:30px;padding:2px 6px;font-size:11px;"' + disabledAttr + '>' +
                     azubiStatuses.map(function(st) {
                       return '<option value="' + esc(st) + '"' + (st === item.status ? ' selected' : '') + '>' + esc(st) + '</option>';
                     }).join('') +
-                  '</select>' +
-                '</div>' +
-                '<div class="user-modal-grid">' +
-                  '<div class="form-field">' +
-                    '<label class="kicker">Was lief gut? (Lernfortschritt &amp; Feedback)</label>' +
-                    '<textarea class="input-control ops-textarea ops-rating-feedback" rows="2" maxlength="2000"' + disabledAttr + '>' + esc(item.feedback || '') + '</textarea>' +
-                  '</div>' +
-                  '<div class="form-field">' +
-                    '<label class="kicker">Lernfelder &amp; To-Dos (Nächste Ziele)</label>' +
-                    '<textarea class="input-control ops-textarea ops-rating-todo" rows="2" maxlength="2000"' + disabledAttr + '>' + esc(item.todo || '') + '</textarea>' +
-                  '</div>' +
-                '</div>';
+                  '</select></td>' +
+                  renderSliderCell(item.stars[0], 0, disabledAttr) +
+                  renderSliderCell(item.stars[1], 1, disabledAttr) +
+                  renderSliderCell(item.stars[2], 2, disabledAttr) +
+                  renderSliderCell(item.stars[3], 3, disabledAttr) +
+                  '<td class="tabular"><span class="badge ops-row-score">' + esc(item.score || '-') + '</span></td>' +
+                  '<td><input type="text" class="input-control ops-rating-inline-input ops-rating-feedback" maxlength="2000" value="' + esc(item.feedback || '') + '" placeholder="Feedback …"' + disabledAttr + '></td>' +
+                  '<td><input type="text" class="input-control ops-rating-inline-input ops-rating-todo" maxlength="2000" value="' + esc(item.todo || '') + '" placeholder="To-Dos …"' + disabledAttr + '></td>' +
+                '</tr>';
+              }).join('')
+            : '<tr><td colspan="10">Keine Azubis vorhanden.</td></tr>';
 
-            return '<div class="card ops-rating-card" data-idx="' + idx + '" data-type="' + (isStaff ? 'staff' : 'azubi') + '" data-row="' + esc(item.row) + '" data-name="' + esc(item.name) + '" style="margin-bottom:14px;">' +
-              '<div class="card-head">' +
-                '<div>' +
-                  '<div class="kicker">' + esc(item.dept || 'Team') + ' · Zeile ' + esc(item.row) + '</div>' +
-                  '<h3>' + esc(item.name) + '</h3>' +
-                '</div>' +
-                '<div style="display:flex;gap:8px;align-items:center;">' +
-                  '<span class="badge ops-rating-score-badge">Score Ø: ' + esc(item.score || '-') + '</span>' +
-                  (res.canWrite
-                    ? '<button type="button" class="btn btn-primary btn-sm ops-rating-save-btn">Speichern &amp; Sync</button>'
-                    : '') +
-                '</div>' +
-              '</div>' +
-              '<div class="grid-2">' + critHtml + '</div>' +
-              extraHtml +
-              '<div class="ops-rating-msg" style="margin-top:8px;font-size:12px;"></div>' +
-            '</div>';
-          }).join('');
+          tableHtml =
+            '<div class="table-wrap"><table class="ops-rating-table"><thead><tr>' +
+              '<th>Azubi</th><th>Abt.</th><th>Berichtsheft</th>' +
+              criteria.map(function(c) { return '<th>' + esc(c) + '</th>'; }).join('') +
+              '<th>Ø</th><th>Feedback</th><th>To-Dos</th>' +
+            '</tr></thead><tbody>' + rowsHtml + '</tbody></table></div>';
         }
 
         pane.innerHTML =
-          '<div class="card" style="margin-bottom:16px;">' +
+          '<div class="card">' +
             '<div class="card-head">' +
               '<div>' +
-                '<div class="kicker">SONA HUB Synchronisiert · ' + esc(session.standortName) + '</div>' +
-                '<h3>Mitarbeiterbewertung (' + esc(isStaff ? 'Personal Scorecard' : 'Azubi-Entwicklung') + ')</h3>' +
-                (res.kwBanner ? '<div style="font-size:12px;color:var(--os-silk);margin-top:4px;">' + esc(res.kwBanner) + '</div>' : '') +
+                '<div class="kicker">' + esc(res.kwBanner || ('Mitarbeiter Ranking · ' + session.standortName)) + '</div>' +
+                '<h3>' + esc(isStaff ? 'Personal Scorecard' : 'Azubi-Entwicklung') + '</h3>' +
               '</div>' +
               '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">' +
-                '<button type="button" id="btnRatingSubStaff" class="bv-tab-btn' + (isStaff ? ' active' : '') + '">Personal Scorecard (' + esc(staffList.length) + ')</button>' +
-                '<button type="button" id="btnRatingSubAzubi" class="bv-tab-btn' + (!isStaff ? ' active' : '') + '">Azubi-Entwicklung (' + esc(azubiList.length) + ')</button>' +
+                '<button type="button" id="btnRatingSubStaff" class="bv-tab-btn' + (isStaff ? ' active' : '') + '">Personal (' + esc(staffList.length) + ')</button>' +
+                '<button type="button" id="btnRatingSubAzubi" class="bv-tab-btn' + (!isStaff ? ' active' : '') + '">Azubis (' + esc(azubiList.length) + ')</button>' +
+                (res.canWrite ? '<button type="button" id="btnToggleAddMember" class="btn btn-sm">+ ' + (isStaff ? 'Mitarbeiter' : 'Azubi') + '</button>' : '') +
+                (res.canWrite ? '<button type="button" id="btnSaveAllRatings" class="btn btn-primary btn-sm">Speichern &amp; Sync</button>' : '') +
                 '<button type="button" id="btnReloadRatings" class="btn btn-sm">Neu laden</button>' +
               '</div>' +
             '</div>' +
-            (!res.canWrite ? '<p class="module-desc">Du hast aktuell Leserecht. Zum Speichern in den SONA HUB wird WRITE- oder ADMIN-Zugriff benötigt.</p>' : '') +
-          '</div>' +
-          cardsHtml;
+            addFormHtml +
+            '<div id="opsRatingMsg" style="margin-bottom:10px;font-size:12px;"></div>' +
+            tableHtml +
+          '</div>';
+
+        updateSaveButtonLabel();
 
         const btnStaff = document.getElementById('btnRatingSubStaff');
         const btnAzubi = document.getElementById('btnRatingSubAzubi');
         const btnReload = document.getElementById('btnReloadRatings');
-        if (btnStaff) btnStaff.addEventListener('click', function() { OPS_STATE.ratingSubTab = 'staff'; renderRatingBody(); });
-        if (btnAzubi) btnAzubi.addEventListener('click', function() { OPS_STATE.ratingSubTab = 'azubi'; renderRatingBody(); });
+        const btnToggleAdd = document.getElementById('btnToggleAddMember');
+        if (btnStaff) btnStaff.addEventListener('click', function() { OPS_STATE.ratingSubTab = 'staff'; showAddForm = false; renderRatingBody(); });
+        if (btnAzubi) btnAzubi.addEventListener('click', function() { OPS_STATE.ratingSubTab = 'azubi'; showAddForm = false; renderRatingBody(); });
         if (btnReload) btnReload.addEventListener('click', function() { loadRatingTab(session); });
+        if (btnToggleAdd) btnToggleAdd.addEventListener('click', function() { showAddForm = !showAddForm; renderRatingBody(); });
 
-        pane.querySelectorAll('.ops-rating-card').forEach(function(card) {
-          const idx = parseInt(card.dataset.idx, 10);
+        const btnCancelAdd = document.getElementById('btnCancelAddMember');
+        if (btnCancelAdd) btnCancelAdd.addEventListener('click', function() { showAddForm = false; renderRatingBody(); });
+
+        const btnConfirmAdd = document.getElementById('btnConfirmAddMember');
+        if (btnConfirmAdd) {
+          btnConfirmAdd.addEventListener('click', async function() {
+            const nameInput = document.getElementById('opsAddMemberName');
+            const deptSelect = document.getElementById('opsAddMemberDept');
+            const statusSelect = document.getElementById('opsAddAzubiStatus');
+            const msgEl = document.getElementById('opsRatingMsg');
+            const cleanName = nameInput ? nameInput.value.trim() : '';
+            if (cleanName.length < 2) {
+              if (msgEl) { msgEl.style.color = '#f87171'; msgEl.textContent = 'Bitte einen Namen eingeben (mind. 2 Zeichen).'; }
+              return;
+            }
+            btnConfirmAdd.disabled = true;
+            btnConfirmAdd.textContent = 'Legt an…';
+            try {
+              const addRes = await window.SonaApi.addOpsRatingMember(session.standortId, {
+                type: typeKey,
+                name: cleanName,
+                dept: deptSelect ? deptSelect.value : 'Service',
+                status: statusSelect ? statusSelect.value : 'Vollstaendig'
+              });
+              if (!addRes || !addRes.success) {
+                if (msgEl) { msgEl.style.color = '#f87171'; msgEl.textContent = (addRes && addRes.error) || 'Anlegen fehlgeschlagen.'; }
+                return;
+              }
+              if (isStaff && addRes.member) staffList.push(addRes.member);
+              if (!isStaff && addRes.member) azubiList.push(addRes.member);
+              showAddForm = false;
+              renderRatingBody();
+              if (window.SonaApp && window.SonaApp.toast) {
+                window.SonaApp.toast(cleanName + ' angelegt und mit SONA HUB synchronisiert.');
+              }
+            } catch (eAdd) {
+              if (msgEl) { msgEl.style.color = '#f87171'; msgEl.textContent = 'Verbindungsfehler: ' + (eAdd && eAdd.message ? eAdd.message : String(eAdd)); }
+            } finally {
+              btnConfirmAdd.disabled = false;
+              btnConfirmAdd.textContent = 'Anlegen';
+            }
+          });
+        }
+
+        pane.querySelectorAll('.ops-rating-row').forEach(function(tr) {
+          const idx = parseInt(tr.dataset.idx, 10);
           const item = list[idx];
           if (!item) return;
+          const rowKey = typeKey + '_' + item.row;
 
-          const updateLiveScore = function() {
-            const awEl = card.querySelector('.ops-rating-aw');
-            const isAw = awEl ? !!awEl.checked : false;
-            const badge = card.querySelector('.ops-rating-score-badge');
-            if (badge) {
-              badge.textContent = 'Score Ø: ' + calcClientAvgScore(item.stars, isAw);
+          const markDirty = function() {
+            dirtyMap[rowKey] = { type: typeKey, item: item };
+            tr.classList.add('is-dirty');
+            const scoreBadge = tr.querySelector('.ops-row-score');
+            if (scoreBadge) {
+              item.score = calcClientAvgScore(item.stars, !!item.isAw);
+              scoreBadge.textContent = item.score;
             }
+            updateSaveButtonLabel();
           };
 
-          card.querySelectorAll('.form-field[data-crit-idx]').forEach(function(field) {
-            const cIdx = parseInt(field.dataset.critIdx, 10);
-            field.querySelectorAll('.ops-star-pick').forEach(function(btn) {
-              btn.addEventListener('click', function() {
-                if (!res.canWrite) return;
-                field.querySelectorAll('.ops-star-pick').forEach(function(b) { b.classList.remove('active'); });
-                btn.classList.add('active');
-                item.stars[cIdx] = btn.dataset.star;
-                const awEl = card.querySelector('.ops-rating-aw');
-                if (awEl && btn.dataset.star !== 'Außer Wertung') awEl.checked = false;
-                updateLiveScore();
-              });
+          tr.querySelectorAll('.ops-slider').forEach(function(slider) {
+            slider.addEventListener('input', function() {
+              const cIdx = parseInt(slider.dataset.critIdx, 10);
+              const valNum = parseInt(slider.value, 10);
+              item.stars[cIdx] = STAR_BY_NUM[valNum] || '★★☆☆☆ (2)';
+              const valSpan = slider.parentNode && slider.parentNode.querySelector('.ops-slider-val');
+              if (valSpan) valSpan.textContent = valNum + '★';
+              const awBox = tr.querySelector('.ops-rating-aw');
+              if (awBox && awBox.checked) {
+                awBox.checked = false;
+                item.isAw = false;
+              }
+              markDirty();
             });
           });
 
-          const awBox = card.querySelector('.ops-rating-aw');
+          const awBox = tr.querySelector('.ops-rating-aw');
           if (awBox) {
             awBox.addEventListener('change', function() {
               item.isAw = !!awBox.checked;
-              updateLiveScore();
+              markDirty();
             });
           }
 
-          const saveBtn = card.querySelector('.ops-rating-save-btn');
-          if (saveBtn) {
-            saveBtn.addEventListener('click', async function() {
-              const msgEl = card.querySelector('.ops-rating-msg');
-              saveBtn.disabled = true;
-              saveBtn.textContent = 'Synchronisiert…';
-              if (msgEl) msgEl.textContent = '';
+          const notesEl = tr.querySelector('.ops-rating-notes');
+          if (notesEl) {
+            notesEl.addEventListener('input', function() {
+              item.notes = notesEl.value;
+              markDirty();
+            });
+          }
 
-              try {
-                const payload = {
-                  type: card.dataset.type,
-                  row: parseInt(card.dataset.row, 10),
-                  expectedName: card.dataset.name,
-                  stars: item.stars.slice(0, 4)
-                };
-                if (payload.type === 'staff') {
-                  const notesEl = card.querySelector('.ops-rating-notes');
-                  const awEl = card.querySelector('.ops-rating-aw');
-                  payload.notes = notesEl ? notesEl.value : '';
-                  payload.isAw = awEl ? !!awEl.checked : false;
-                  item.notes = payload.notes;
-                  item.isAw = payload.isAw;
-                } else {
-                  const statusEl = card.querySelector('.ops-rating-status');
-                  const fbEl = card.querySelector('.ops-rating-feedback');
-                  const todoEl = card.querySelector('.ops-rating-todo');
-                  payload.status = statusEl ? statusEl.value : 'Vollstaendig';
-                  payload.feedback = fbEl ? fbEl.value : '';
-                  payload.todo = todoEl ? todoEl.value : '';
-                  item.status = payload.status;
-                  item.feedback = payload.feedback;
-                  item.todo = payload.todo;
-                }
+          const statusEl = tr.querySelector('.ops-rating-status');
+          if (statusEl) {
+            statusEl.addEventListener('change', function() {
+              item.status = statusEl.value;
+              markDirty();
+            });
+          }
 
-                const saveRes = await window.SonaApi.saveOpsRating(session.standortId, payload);
-                if (!saveRes || !saveRes.success) {
-                  if (msgEl) {
-                    msgEl.style.color = '#f87171';
-                    msgEl.textContent = (saveRes && saveRes.error) || 'Synchronisation fehlgeschlagen.';
-                  }
-                  return;
-                }
+          const fbEl = tr.querySelector('.ops-rating-feedback');
+          if (fbEl) {
+            fbEl.addEventListener('input', function() {
+              item.feedback = fbEl.value;
+              markDirty();
+            });
+          }
 
-                item.score = saveRes.score;
-                const badge = card.querySelector('.ops-rating-score-badge');
-                if (badge) badge.textContent = 'Score Ø: ' + (saveRes.score || '-');
-                if (msgEl) {
-                  msgEl.style.color = '#4ade80';
-                  msgEl.textContent = '✓ Mit SONA HUB synchronisiert (Zeile ' + saveRes.row + ').';
-                }
-                if (window.SonaApp && window.SonaApp.toast) {
-                  window.SonaApp.toast('Bewertung für ' + item.name + ' im SONA HUB gespeichert.');
-                }
-              } catch (err) {
-                if (msgEl) {
-                  msgEl.style.color = '#f87171';
-                  msgEl.textContent = 'Verbindungsfehler: ' + (err && err.message ? err.message : String(err));
-                }
-              } finally {
-                saveBtn.disabled = false;
-                saveBtn.textContent = 'Speichern & Sync';
-              }
+          const todoEl = tr.querySelector('.ops-rating-todo');
+          if (todoEl) {
+            todoEl.addEventListener('input', function() {
+              item.todo = todoEl.value;
+              markDirty();
             });
           }
         });
+
+        const btnSaveAll = document.getElementById('btnSaveAllRatings');
+        if (btnSaveAll) {
+          btnSaveAll.addEventListener('click', async function() {
+            const keys = Object.keys(dirtyMap);
+            if (!keys.length) return;
+            const msgEl = document.getElementById('opsRatingMsg');
+            btnSaveAll.disabled = true;
+            btnSaveAll.textContent = 'Synchronisiert…';
+            if (msgEl) msgEl.textContent = '';
+
+            const entries = keys.map(function(k) {
+              const d = dirtyMap[k];
+              const it = d.item;
+              if (d.type === 'staff') {
+                return {
+                  type: 'staff',
+                  row: it.row,
+                  expectedName: it.name,
+                  stars: it.stars.slice(0, 4),
+                  notes: it.notes || '',
+                  isAw: !!it.isAw
+                };
+              }
+              return {
+                type: 'azubi',
+                row: it.row,
+                expectedName: it.name,
+                status: it.status || 'Vollstaendig',
+                stars: it.stars.slice(0, 4),
+                feedback: it.feedback || '',
+                todo: it.todo || ''
+              };
+            });
+
+            try {
+              const saveRes = await window.SonaApi.saveOpsRatingBatch(session.standortId, entries);
+              if (!saveRes || !saveRes.success) {
+                if (msgEl) {
+                  msgEl.style.color = '#f87171';
+                  msgEl.textContent = (saveRes && saveRes.error) || 'Synchronisation fehlgeschlagen.';
+                }
+                return;
+              }
+              keys.forEach(function(k) { delete dirtyMap[k]; });
+              pane.querySelectorAll('.ops-rating-row.is-dirty').forEach(function(tr) { tr.classList.remove('is-dirty'); });
+              if (msgEl) {
+                msgEl.style.color = '#4ade80';
+                msgEl.textContent = '✓ ' + saveRes.savedCount + ' Bewertung(en) mit SONA HUB synchronisiert.';
+              }
+              if (window.SonaApp && window.SonaApp.toast) {
+                window.SonaApp.toast(saveRes.savedCount + ' Bewertung(en) im SONA HUB gespeichert.');
+              }
+            } catch (err) {
+              if (msgEl) {
+                msgEl.style.color = '#f87171';
+                msgEl.textContent = 'Verbindungsfehler: ' + (err && err.message ? err.message : String(err));
+              }
+            } finally {
+              updateSaveButtonLabel();
+            }
+          });
+        }
       };
 
       renderRatingBody();
@@ -765,7 +885,7 @@
       if (!currentPane) return;
       currentPane.innerHTML =
         '<div class="card">' +
-          '<div class="kicker">Mitarbeiterbewertung</div>' +
+          '<div class="kicker">Mitarbeiter Ranking</div>' +
           '<p class="module-desc">Verbindungsfehler: ' + esc(err && err.message ? err.message : String(err)) + '</p>' +
         '</div>';
     }
@@ -773,7 +893,11 @@
 
   window.SonaOperationsModule = {
     openExternalTab: openExternalTab,
-    mount: function(session, mod) {
+    renderAuswertungInto: function(targetEl, session) {
+      if (!targetEl || !session) return;
+      loadMonthlySummary(session, false, OPS_STATE.selectedPeriod, targetEl);
+    },
+    mount: function(session, mod, sectionKey) {
       const container = document.getElementById('osMainContent');
       if (!container) return;
 
@@ -788,7 +912,6 @@
       const bruchUrl = appendUserParam(rawBruchUrl);
 
       const perms = (session && session.permissions) || {};
-      const accessLevel = String(perms.accessLevel || 'READ').toUpperCase();
       const opTabs = (perms.tabPermissions && perms.tabPermissions.operations !== undefined)
         ? perms.tabPermissions.operations
         : 'ALL';
@@ -796,123 +919,145 @@
       const canReklamation = (opTabs === 'ALL') || (Array.isArray(opTabs) && opTabs.indexOf('reklamation') !== -1);
       const canSchwundInput = (opTabs === 'ALL') || (Array.isArray(opTabs) && opTabs.indexOf('schwund_eingabe') !== -1);
       const canBruchInput = (opTabs === 'ALL') || (Array.isArray(opTabs) && opTabs.indexOf('bruch_eingabe') !== -1);
-      const canSchwundStats = (opTabs === 'ALL' && (accessLevel === 'WRITE' || accessLevel === 'ADMIN' || !!perms.adminMatrix))
-        || (Array.isArray(opTabs) && opTabs.indexOf('schwund_auswertung') !== -1);
       const canStaffRating = (opTabs === 'ALL') || (Array.isArray(opTabs) && opTabs.indexOf('mitarbeiterbewertung') !== -1);
 
-      const tabs = [];
-      if (canReklamation) tabs.push({ id: 'reklamation', label: 'Gäste-Reklamation' });
-      if (canSchwundInput || canBruchInput) tabs.push({ id: 'inputs', label: 'Schwund & Bruch' });
-      if (canSchwundStats) tabs.push({ id: 'stats', label: 'Schwund- & Bruch-Auswertung' });
-      if (canStaffRating) tabs.push({ id: 'mitarbeiterbewertung', label: 'Mitarbeiterbewertung' });
+      const activeSection = sectionKey || 'home';
 
-      if (!tabs.some(function(t) { return t.id === OPS_STATE.activeTab; })) {
-        OPS_STATE.activeTab = tabs.length ? tabs[0].id : '';
-      }
+      const renderOpsHome = function() {
+        const cards = [];
+        if (canSchwundInput) {
+          cards.push(
+            '<button type="button" class="home-tile" data-ops-ext="' + esc(schwundUrl) + '">' +
+              '<div class="home-tile-head"><h4 class="home-tile-title">1. Schwund</h4><span class="home-tile-arrow">↗</span></div>' +
+              '<p class="home-tile-desc">Verderb &amp; Überproduktion erfassen</p>' +
+            '</button>'
+          );
+        }
+        if (canBruchInput) {
+          cards.push(
+            '<button type="button" class="home-tile" data-ops-ext="' + esc(bruchUrl) + '">' +
+              '<div class="home-tile-head"><h4 class="home-tile-title">2. Bruch</h4><span class="home-tile-arrow">↗</span></div>' +
+              '<p class="home-tile-desc">Glas-, Geschirr- &amp; Flaschenbruch erfassen</p>' +
+            '</button>'
+          );
+        }
+        if (canReklamation) {
+          cards.push(
+            '<button type="button" class="home-tile" data-ops-nav="ops_reklamation">' +
+              '<div class="home-tile-head"><h4 class="home-tile-title">3. Reklamation und Beschwerden</h4><span class="home-tile-arrow">→</span></div>' +
+              '<p class="home-tile-desc">Gästefeedback &amp; Reklamationen dokumentieren</p>' +
+            '</button>'
+          );
+        }
+        cards.push(
+          '<button type="button" class="home-tile" data-ops-nav="ops_todo">' +
+            '<div class="home-tile-head"><h4 class="home-tile-title">4. To-Do-Liste</h4><span class="home-tile-arrow">→</span></div>' +
+            '<p class="home-tile-desc">Aufgaben für Küche, Bar &amp; Service</p>' +
+          '</button>'
+        );
+        cards.push(
+          '<button type="button" class="home-tile" data-ops-nav="ops_putzplan">' +
+            '<div class="home-tile-head"><h4 class="home-tile-title">5. Putzplan</h4><span class="home-tile-arrow">→</span></div>' +
+            '<p class="home-tile-desc">Tägliche &amp; wöchentliche Reinigungspläne</p>' +
+          '</button>'
+        );
+        if (canStaffRating) {
+          cards.push(
+            '<button type="button" class="home-tile" data-ops-nav="ops_ranking">' +
+              '<div class="home-tile-head"><h4 class="home-tile-title">6. Mitarbeiter Ranking</h4><span class="home-tile-arrow">→</span></div>' +
+              '<p class="home-tile-desc">Personal Scorecard &amp; Azubi-Entwicklung</p>' +
+            '</button>'
+          );
+        }
 
-      const renderActiveOpsTab = function() {
-        container.querySelectorAll('.ops-subtab-btn').forEach(function(btn) {
-          btn.classList.toggle('active', btn.dataset.opstab === OPS_STATE.activeTab);
+        container.innerHTML =
+          '<div class="pillar-section">' +
+            '<div class="pillar-head"><h3>Operations · ' + esc(session.standortName) + '</h3></div>' +
+            '<div class="grid-3">' + cards.join('') + '</div>' +
+          '</div>';
+
+        container.querySelectorAll('[data-ops-ext]').forEach(function(btn) {
+          btn.addEventListener('click', function() {
+            if (btn.dataset.opsExt) openExternalTab(btn.dataset.opsExt);
+          });
         });
-        const pane = document.getElementById('opsTabPane');
-        if (!pane) return;
-
-        if (OPS_STATE.activeTab === 'reklamation') {
-          loadReklamationTab(session, OPS_STATE.selectedMonth);
-          return;
-        }
-
-        if (OPS_STATE.activeTab === 'inputs') {
-          let inputCardsHtml = '';
-          if (canSchwundInput) {
-            inputCardsHtml +=
-              '<div class="module-card">' +
-                '<div>' +
-                  '<div class="kicker">Tagesbetrieb · Separater Tab</div>' +
-                  '<h3>Schwund-Erfassung</h3>' +
-                  '<p class="module-desc">Tagesaktuelle Erfassung von Verderb, Überproduktion &amp; Küchen-/Bar-Schwund. Dein Profilname wird automatisch vorbelegt.</p>' +
-                '</div>' +
-                '<div>' +
-                  (schwundUrl
-                    ? '<a class="btn btn-primary btn-sm" href="' + esc(schwundUrl) + '" target="_blank" rel="noopener noreferrer" onclick="window.open(this.href, \'_blank\', \'noopener,noreferrer\'); return false;">Im neuen Tab öffnen ↗</a>'
-                    : '<span class="badge">URL nicht hinterlegt</span>') +
-                  '<div style="margin-top:8px;font-size:11px;color:var(--os-silk);">Öffnet sich im eigenen Browser-Tab – SONA OS bleibt offen.</div>' +
-                '</div>' +
-              '</div>';
-          }
-          if (canBruchInput) {
-            inputCardsHtml +=
-              '<div class="module-card">' +
-                '<div>' +
-                  '<div class="kicker">Tagesbetrieb · Separater Tab</div>' +
-                  '<h3>Bruch-Erfassung</h3>' +
-                  '<p class="module-desc">Schnelle Erfassung von Glas-, Geschirr- und Flaschenbruch im laufenden Service. Dein Profilname wird automatisch vorbelegt.</p>' +
-                '</div>' +
-                '<div>' +
-                  (bruchUrl
-                    ? '<a class="btn btn-primary btn-sm" href="' + esc(bruchUrl) + '" target="_blank" rel="noopener noreferrer" onclick="window.open(this.href, \'_blank\', \'noopener,noreferrer\'); return false;">Im neuen Tab öffnen ↗</a>'
-                    : '<span class="badge">URL nicht hinterlegt</span>') +
-                  '<div style="margin-top:8px;font-size:11px;color:var(--os-silk);">Öffnet sich im eigenen Browser-Tab – SONA OS bleibt offen.</div>' +
-                '</div>' +
-              '</div>';
-          }
-
-          pane.innerHTML =
-            '<div class="pillar-section"><div class="grid-2">' + inputCardsHtml + '</div></div>' +
-            '<div class="pillar-section">' +
-              '<div class="pillar-head"><h3>Weitere Operations-Bausteine</h3></div>' +
-              '<div class="grid-2">' +
-                '<div class="module-card">' +
-                  '<div><div class="kicker">SONA HUB Synchronisiert</div><h3>Mitarbeiterbewertung</h3><p class="module-desc">Personal Scorecard (4 Kriterien) &amp; Azubi-Entwicklung direkt mit dem SONA HUB synchronisieren.</p></div>' +
-                  '<div>' +
-                    (canStaffRating
-                      ? '<button type="button" id="btnOpenStaffRatingFromInputs" class="btn btn-primary btn-sm">Jetzt bewerten →</button>'
-                      : '<span class="badge">Kein Zugriff</span>') +
-                  '</div>' +
-                '</div>' +
-                '<div class="module-card"><div><div class="kicker">In Vorbereitung</div><h3>Checklisten &amp; Übergabe</h3><p class="module-desc">Öffnungs-, Schicht- und Schließchecklisten für Küche, Bar und Service.</p></div><div><span class="badge">Vorbereitet</span></div></div>' +
-              '</div>' +
-            '</div>';
-          const openBtn = document.getElementById('btnOpenStaffRatingFromInputs');
-          if (openBtn) {
-            openBtn.addEventListener('click', function() {
-              OPS_STATE.activeTab = 'mitarbeiterbewertung';
-              renderActiveOpsTab();
-            });
-          }
-          return;
-        }
-
-        if (OPS_STATE.activeTab === 'stats') {
-          pane.innerHTML = '<div id="opsSchwundKpiSlot"></div>';
-          loadMonthlySummary(session, false, OPS_STATE.selectedPeriod);
-          return;
-        }
-
-        if (OPS_STATE.activeTab === 'mitarbeiterbewertung') {
-          loadRatingTab(session, renderActiveOpsTab);
-          return;
-        }
-
-        pane.innerHTML = '<div class="card"><p class="module-desc">Für deinen Zugang sind in Operations aktuell keine Tabs freigeschaltet.</p></div>';
+        container.querySelectorAll('[data-ops-nav]').forEach(function(btn) {
+          btn.addEventListener('click', function() {
+            if (window.SonaApp && window.SonaApp.openView) {
+              window.SonaApp.openView(btn.dataset.opsNav);
+            }
+          });
+        });
       };
 
-      container.innerHTML =
-        '<div class="bv-subtabs">' +
-          tabs.map(function(t) {
-            return '<button type="button" class="bv-tab-btn ops-subtab-btn' + (t.id === OPS_STATE.activeTab ? ' active' : '') + '" data-opstab="' + esc(t.id) + '">' + esc(t.label) + '</button>';
-          }).join('') +
-        '</div>' +
-        '<div id="opsTabPane"></div>';
+      const renderSectionWrapper = function(title) {
+        container.innerHTML =
+          '<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px;flex-wrap:wrap;">' +
+            '<button type="button" id="btnOpsBackHome" class="btn btn-sm">← Zurück zu Operations</button>' +
+            '<span class="kicker">' + esc(title) + ' · ' + esc(session.standortName) + '</span>' +
+          '</div>' +
+          '<div id="opsTabPane"></div>';
+        const backBtn = document.getElementById('btnOpsBackHome');
+        if (backBtn) {
+          backBtn.addEventListener('click', function() {
+            if (window.SonaApp && window.SonaApp.openView) {
+              window.SonaApp.openView('mod_operations');
+            } else {
+              renderOpsHome();
+            }
+          });
+        }
+      };
 
-      container.querySelectorAll('.ops-subtab-btn').forEach(function(btn) {
-        btn.addEventListener('click', function() {
-          OPS_STATE.activeTab = btn.dataset.opstab;
-          renderActiveOpsTab();
-        });
-      });
+      if (activeSection === 'reklamation') {
+        if (!canReklamation) {
+          container.innerHTML = '<div class="card"><p class="module-desc">Kein Zugriff auf Reklamation und Beschwerden.</p></div>';
+          return;
+        }
+        renderSectionWrapper('Reklamation und Beschwerden');
+        loadReklamationTab(session, OPS_STATE.selectedMonth);
+        return;
+      }
 
-      renderActiveOpsTab();
+      if (activeSection === 'ranking') {
+        if (!canStaffRating) {
+          container.innerHTML = '<div class="card"><p class="module-desc">Kein Zugriff auf Mitarbeiter Ranking.</p></div>';
+          return;
+        }
+        renderSectionWrapper('Mitarbeiter Ranking');
+        loadRatingTab(session);
+        return;
+      }
+
+      if (activeSection === 'todo') {
+        renderSectionWrapper('To-Do-Liste');
+        const pane = document.getElementById('opsTabPane');
+        if (pane) {
+          pane.innerHTML =
+            '<div class="card">' +
+              '<div class="kicker">Operations · In Vorbereitung</div>' +
+              '<h3>To-Do-Liste</h3>' +
+              '<p class="module-desc">Aufgaben für Küche, Bar &amp; Service. Anbindung folgt in Kürze.</p>' +
+            '</div>';
+        }
+        return;
+      }
+
+      if (activeSection === 'putzplan') {
+        renderSectionWrapper('Putzplan');
+        const pane = document.getElementById('opsTabPane');
+        if (pane) {
+          pane.innerHTML =
+            '<div class="card">' +
+              '<div class="kicker">Operations · In Vorbereitung</div>' +
+              '<h3>Putzplan</h3>' +
+              '<p class="module-desc">Tägliche &amp; wöchentliche Reinigungspläne. Anbindung folgt in Kürze.</p>' +
+            '</div>';
+        }
+        return;
+      }
+
+      renderOpsHome();
     }
   };
 })();

@@ -226,6 +226,14 @@
       standortId: standortId,
       entry: entry || {}
     }),
+    saveOpsRatingBatch: (standortId, entries) => callPost('os_ops_rating_save_batch', {
+      standortId: standortId,
+      entries: Array.isArray(entries) ? entries : []
+    }),
+    addOpsRatingMember: (standortId, member) => callPost('os_ops_rating_add', {
+      standortId: standortId,
+      member: member || {}
+    }),
     getModuleLaunchUrl: (moduleKey, standortId) => callPost('os_module_launch', {
       moduleKey: moduleKey,
       standortId: standortId

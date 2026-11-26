@@ -315,6 +315,33 @@
     }
   }
 
+  function getIsoWeekNumber(dateObj) {
+    const d = new Date(Date.UTC(dateObj.getFullYear(), dateObj.getMonth(), dateObj.getDate()));
+    d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
+    const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+    return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+  }
+
+  function updateGlobalPeriodBar(session) {
+    const now = new Date();
+    const dateEl = $('osPeriodDate');
+    const monthEl = $('osPeriodMonth');
+    const kwEl = $('osPeriodKw');
+    const locEl = $('osPeriodLocation');
+    if (dateEl) {
+      dateEl.textContent = now.toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric' });
+    }
+    if (monthEl) {
+      monthEl.textContent = now.toLocaleDateString('de-DE', { month: 'long', year: 'numeric' });
+    }
+    if (kwEl) {
+      kwEl.textContent = 'KW ' + String(getIsoWeekNumber(now)).padStart(2, '0');
+    }
+    if (locEl && session) {
+      locEl.textContent = session.standortName || '';
+    }
+  }
+
   function renderAuthenticatedShell() {
     const s = STATE.session;
     if (!s || !s.permissions) {
@@ -324,24 +351,53 @@
 
     $('lockScreen').classList.add('hidden');
     $('osAppShell').classList.remove('hidden');
+    updateGlobalPeriodBar(s);
 
     const mods = s.ecosystemModules || [];
+    const opsMod = mods.find(m => m.key === 'operations');
+    const perms = (s && s.permissions) || {};
+    const opTabs = (perms.tabPermissions && perms.tabPermissions.operations !== undefined)
+      ? perms.tabPermissions.operations
+      : 'ALL';
+    const hasOpTab = id => opTabs === 'ALL' || (Array.isArray(opTabs) && opTabs.indexOf(id) !== -1);
+
+    const opsNavItems = [];
+    if (opsMod) {
+      if (hasOpTab('schwund_eingabe') && opsMod.schwundUrl) {
+        opsNavItems.push({ key: 'ops_schwund', title: 'Schwund', pillar: 'OPERATIONS', externalUrl: buildQuickOpsUrl(opsMod.schwundUrl, s) });
+      }
+      if (hasOpTab('bruch_eingabe') && opsMod.bruchUrl) {
+        opsNavItems.push({ key: 'ops_bruch', title: 'Bruch', pillar: 'OPERATIONS', externalUrl: buildQuickOpsUrl(opsMod.bruchUrl, s) });
+      }
+      if (hasOpTab('reklamation')) {
+        opsNavItems.push({ key: 'ops_reklamation', title: 'Reklamation und Beschwerden', pillar: 'OPERATIONS' });
+      }
+      opsNavItems.push({ key: 'ops_todo', title: 'To-Do-Liste', pillar: 'OPERATIONS' });
+      opsNavItems.push({ key: 'ops_putzplan', title: 'Putzplan', pillar: 'OPERATIONS' });
+      if (hasOpTab('mitarbeiterbewertung')) {
+        opsNavItems.push({ key: 'ops_ranking', title: 'Mitarbeiter Ranking', pillar: 'OPERATIONS' });
+      }
+    }
+
     const navItems = [
       { key: 'overview', title: 'Startseite', pillar: 'ROOT' }
-    ].concat(mods.map(m => ({ key: 'mod_' + m.key, title: m.title, pillar: m.pillar || 'WARENWIRTSCHAFT' })));
+    ]
+      .concat(opsNavItems)
+      .concat(mods.filter(m => m.key !== 'operations').map(m => ({ key: 'mod_' + m.key, title: m.title, pillar: m.pillar || 'WARENWIRTSCHAFT' })));
 
     if (s.permissions.adminMatrix) {
       navItems.push({ key: 'rbac', title: 'Rechte-Matrix', pillar: 'ADMIN' });
     }
 
-    if (!navItems.some(x => x.key === STATE.activeView)) {
+    const validNonNavView = STATE.activeView === 'mod_operations';
+    if (!validNonNavView && !navItems.some(x => x.key === STATE.activeView)) {
       STATE.activeView = 'overview';
     }
 
     const pillarGroups = [
+      { id: 'OPERATIONS', label: 'Operations' },
       { id: 'WARENWIRTSCHAFT', label: 'Warenwirtschaft' },
-      { id: 'CONTROLLING', label: 'Controlling' },
-      { id: 'OPERATIONS', label: 'Operations' }
+      { id: 'CONTROLLING', label: 'Controlling' }
     ];
 
     let navHtml =
@@ -349,10 +405,11 @@
         '<span>Startseite</span>' +
       '</button>';
 
+    const isOpsView = STATE.activeView === 'mod_operations' || STATE.activeView.indexOf('ops_') === 0;
     navHtml += pillarGroups.map(group => {
       const items = navItems.filter(it => it.pillar === group.id);
       if (!items.length) return '';
-      const isOpen = !!STATE.openPillars[group.id] || items.some(it => it.key === STATE.activeView);
+      const isOpen = !!STATE.openPillars[group.id] || items.some(it => it.key === STATE.activeView) || (group.id === 'OPERATIONS' && isOpsView);
       STATE.openPillars[group.id] = isOpen;
       return '<div class="os-nav-group' + (isOpen ? ' open' : '') + '" data-pillar="' + esc(group.id) + '">' +
         '<button type="button" class="os-nav-group-btn" data-toggle-pillar="' + esc(group.id) + '">' +
@@ -361,9 +418,13 @@
         '</button>' +
         '<div class="os-nav-group-items">' +
           items.map(item =>
-            '<button type="button" class="os-nav-btn' + (STATE.activeView === item.key ? ' active' : '') + '" data-view="' + esc(item.key) + '">' +
-              '<span>' + esc(item.title) + '</span>' +
-            '</button>'
+            item.externalUrl
+              ? '<a class="os-nav-btn" href="' + esc(item.externalUrl) + '" target="_blank" rel="noopener noreferrer" onclick="window.open(this.href, \'_blank\', \'noopener,noreferrer\'); return false;">' +
+                  '<span>' + esc(item.title) + '</span>' +
+                '</a>'
+              : '<button type="button" class="os-nav-btn' + (STATE.activeView === item.key ? ' active' : '') + '" data-view="' + esc(item.key) + '">' +
+                  '<span>' + esc(item.title) + '</span>' +
+                '</button>'
           ).join('') +
         '</div>' +
       '</div>';
@@ -462,6 +523,19 @@
       renderRbacMatrixView();
       return;
     }
+    if (STATE.activeView.indexOf('ops_') === 0) {
+      const opsMod = (s.ecosystemModules || []).find(m => m.key === 'operations');
+      if (opsMod && window.SonaOperationsModule) {
+        const grp = document.querySelector('#osNavList .os-nav-group[data-pillar="OPERATIONS"]');
+        if (grp) {
+          grp.classList.add('open');
+          STATE.openPillars.OPERATIONS = true;
+        }
+        showMainContentPane();
+        window.SonaOperationsModule.mount(s, opsMod, STATE.activeView.slice(4));
+        return;
+      }
+    }
     if (STATE.activeView.indexOf('mod_') === 0) {
       const modKey = STATE.activeView.slice(4);
       const mod = (s.ecosystemModules || []).find(m => m.key === modKey);
@@ -473,7 +547,7 @@
         }
         if (mod.key === 'operations' && window.SonaOperationsModule) {
           showMainContentPane();
-          window.SonaOperationsModule.mount(s, mod);
+          window.SonaOperationsModule.mount(s, mod, 'home');
         } else {
           renderEmbeddedModuleView(mod);
         }
@@ -598,9 +672,9 @@
       '</button>';
 
     const pillars = [
+      { id: 'OPERATIONS', title: 'Operations' },
       { id: 'WARENWIRTSCHAFT', title: 'Warenwirtschaft' },
-      { id: 'CONTROLLING', title: 'Controlling' },
-      { id: 'OPERATIONS', title: 'Operations' }
+      { id: 'CONTROLLING', title: 'Controlling' }
     ];
 
     const pillarsHtml = pillars.map(p => {
