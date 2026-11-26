@@ -142,6 +142,17 @@
     }),
     confirmAllEinkaufNewArticles: (standortId) => callPost('os_einkauf_confirm_all', {
       standortId: standortId
+    }),
+    getRezepturOverview: (standortId, forceRefresh) => callPost('os_rezeptur_overview', {
+      standortId: standortId,
+      forceRefresh: !!forceRefresh
+    }),
+    getRezepturDetail: (standortId, rezepturId) => callPost('os_rezeptur_detail', {
+      standortId: standortId,
+      rezepturId: rezepturId
+    }),
+    syncRezepturMasters: (standortId) => callPost('os_rezeptur_sync_masters', {
+      standortId: standortId
     })
   };
 })();

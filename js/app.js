@@ -66,6 +66,7 @@
     if (window.SonaBestandModule) window.SonaBestandModule.clearCache();
     if (window.SonaControllingModule) window.SonaControllingModule.clearCache();
     if (window.SonaEinkaufModule) window.SonaEinkaufModule.clearCache();
+    if (window.SonaRezepturModule) window.SonaRezepturModule.clearCache();
     updatePinDots();
     $('osAppShell').classList.add('hidden');
     $('osNavList').innerHTML = '';
@@ -221,6 +222,8 @@
           window.SonaControllingModule.mount(s, mod);
         } else if (mod.key === 'einkauf' && window.SonaEinkaufModule) {
           window.SonaEinkaufModule.mount(s, mod);
+        } else if (mod.key === 'rezeptur' && window.SonaRezepturModule) {
+          window.SonaRezepturModule.mount(s, mod);
         } else {
           renderModuleBridgeView(mod);
         }
@@ -249,7 +252,9 @@
               '<div style="margin-bottom:10px;"><span class="badge ' + (m.nativeReady ? 'badge-ok' : 'badge-info') + '">' + esc(m.phase) + '</span></div>' +
               '<div style="display:flex;gap:8px;flex-wrap:wrap;">' +
                 '<button type="button" class="btn btn-primary btn-sm" onclick="window.SonaApp.openView(\'mod_' + esc(m.key) + '\')">' + (m.nativeReady ? 'Nativ öffnen' : 'Modul-Bereich') + '</button>' +
-                '<a class="btn btn-sm" href="' + esc(m.legacyUrl) + '" target="_blank" rel="noopener">Live-Ebene ↗</a>' +
+                ((!m.adminOnlyLegacy || s.permissions.adminMatrix)
+                  ? '<a class="btn btn-sm" href="' + esc(m.legacyUrl) + '" target="_blank" rel="noopener">' + (m.adminOnlyLegacy ? 'Admin-Vollansicht ↗' : 'Live-Ebene ↗') + '</a>'
+                  : '') +
               '</div>' +
             '</div>' +
           '</div>'
@@ -260,7 +265,7 @@
       '<div class="card">' +
         '<div class="card-head">' +
           '<div>' +
-            '<div class="kicker">Phase 4 · Bestand, Controlling &amp; Einkauf nativ aktiv</div>' +
+            '<div class="kicker">SONA OS · Alle 4 Ebenen nativ aktiv (Single Sign-On)</div>' +
             '<h3>Willkommen im zentralen SONA OS, ' + esc(s.user.name) + '</h3>' +
           '</div>' +
           '<div style="display:flex;gap:8px;flex-wrap:wrap;">' +
