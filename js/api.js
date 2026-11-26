@@ -85,6 +85,29 @@
     checkSession: () => callPost('os_session_check', {}),
     switchLocation: (standortId) => callPost('os_switch_location', { standortId: standortId }),
     getRbacMatrix: () => callPost('os_rbac_list', {}),
-    saveRbacRule: (rule) => callPost('os_rbac_save', { rule: rule })
+    saveRbacRule: (rule) => callPost('os_rbac_save', { rule: rule }),
+    getBestandDashboard: (standortId, filter, forceRefresh) => callPost('os_bestand_dashboard', {
+      standortId: standortId,
+      filter: filter || {},
+      forceRefresh: !!forceRefresh
+    }),
+    getBestandMasterDetail: (standortId, masterIngredientId, periodIds) => callPost('os_bestand_detail', {
+      standortId: standortId,
+      masterIngredientId: masterIngredientId,
+      periodIds: periodIds || []
+    }),
+    runBestandSync: (standortId, mode) => callPost('os_bestand_sync', {
+      standortId: standortId,
+      mode: mode || 'INKREMENTELL'
+    }),
+    saveBestandClarification: (standortId, payload) => callPost('os_bestand_clarify', {
+      standortId: standortId,
+      payload: payload || {}
+    }),
+    exportBestandCsv: (standortId, exportType, filter) => callPost('os_bestand_export', {
+      standortId: standortId,
+      exportType: exportType || 'MATRIX',
+      filter: filter || {}
+    })
   };
 })();

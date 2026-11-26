@@ -682,3 +682,145 @@ tbody tr:hover td {
     left: 12px;
   }
 }
+
+/* ============================================================================
+   Phase 2: Bestand & Warenverbrauch Native UI
+   ============================================================================ */
+.grid-3 {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.bv-toolbar-card {
+  padding: 14px 16px;
+}
+
+.bv-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.bv-toolbar-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.bv-ctrl {
+  height: 34px;
+  min-width: 145px;
+  font-size: 12px;
+}
+
+.bv-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin-bottom: 16px;
+}
+
+.bv-kpi-card {
+  background: var(--os-card);
+  border: 1px solid var(--os-line);
+  border-radius: var(--os-radius);
+  padding: 14px 16px;
+}
+
+.bv-kpi-val {
+  font-family: var(--font-serif);
+  font-size: 26px;
+  font-weight: 600;
+  color: var(--os-cream);
+  margin: 4px 0 4px;
+  line-height: 1.15;
+}
+
+.bv-delta {
+  font-size: 11px;
+  color: var(--os-silk);
+}
+
+.bv-delta-up { color: #F2B8B5; }
+.bv-delta-down { color: #A9DFBF; }
+
+.bv-subtabs {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+  border-bottom: 1px solid var(--os-line);
+  padding-bottom: 10px;
+}
+
+.bv-tab-btn {
+  background: var(--os-card);
+  color: var(--os-silk);
+  border: 1px solid var(--os-line);
+  border-radius: var(--os-radius);
+  padding: 8px 14px;
+  font-family: var(--font-sans);
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.bv-tab-btn:hover {
+  border-color: var(--os-line-strong);
+  color: var(--os-cream);
+}
+
+.bv-tab-btn.active {
+  background: var(--os-cream);
+  color: var(--os-black);
+  border-color: var(--os-cream);
+}
+
+th.bv-sort {
+  cursor: pointer;
+  user-select: none;
+}
+
+th.bv-sort:hover {
+  color: var(--os-cream);
+}
+
+tr.clickable-row {
+  cursor: pointer;
+}
+
+tr.clickable-row:hover td {
+  background: rgba(245, 236, 215, 0.05);
+}
+
+.badge-warn {
+  background: rgba(245, 200, 100, 0.14);
+  color: #F5D58C;
+  border-color: rgba(245, 200, 100, 0.35);
+}
+
+.badge-err {
+  background: rgba(242, 184, 181, 0.14);
+  color: #F2B8B5;
+  border-color: rgba(242, 184, 181, 0.35);
+}
+
+.bv-modal-wide {
+  width: min(860px, 95vw);
+  max-height: 86vh;
+  overflow-y: auto;
+}
+
+@media (max-width: 1080px) {
+  .bv-kpi-grid, .grid-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 720px) {
+  .bv-kpi-grid, .grid-3 { grid-template-columns: 1fr; }
+}

@@ -63,6 +63,7 @@
     STATE.session = null;
     STATE.rbacEntries = [];
     STATE.pinBuffer = '';
+    if (window.SonaBestandModule) window.SonaBestandModule.clearCache();
     updatePinDots();
     $('osAppShell').classList.add('hidden');
     $('osNavList').innerHTML = '';
@@ -212,7 +213,11 @@
       const mod = (s.ecosystemModules || []).find(m => m.key === modKey);
       if (mod) {
         $('activeViewTitle').textContent = mod.title;
-        renderModuleBridgeView(mod);
+        if (mod.key === 'bestand' && window.SonaBestandModule) {
+          window.SonaBestandModule.mount(s, mod);
+        } else {
+          renderModuleBridgeView(mod);
+        }
         return;
       }
     }
@@ -235,9 +240,9 @@
               '<p class="module-desc">' + esc(m.subtitle) + '</p>' +
             '</div>' +
             '<div>' +
-              '<div style="margin-bottom:10px;"><span class="badge badge-info">' + esc(m.phase) + '</span></div>' +
+              '<div style="margin-bottom:10px;"><span class="badge ' + (m.nativeReady ? 'badge-ok' : 'badge-info') + '">' + esc(m.phase) + '</span></div>' +
               '<div style="display:flex;gap:8px;flex-wrap:wrap;">' +
-                '<button type="button" class="btn btn-primary btn-sm" onclick="window.SonaApp.openView(\'mod_' + esc(m.key) + '\')">Modul-Bereich</button>' +
+                '<button type="button" class="btn btn-primary btn-sm" onclick="window.SonaApp.openView(\'mod_' + esc(m.key) + '\')">' + (m.nativeReady ? 'Nativ öffnen' : 'Modul-Bereich') + '</button>' +
                 '<a class="btn btn-sm" href="' + esc(m.legacyUrl) + '" target="_blank" rel="noopener">Live-Ebene ↗</a>' +
               '</div>' +
             '</div>' +
@@ -249,7 +254,7 @@
       '<div class="card">' +
         '<div class="card-head">' +
           '<div>' +
-            '<div class="kicker">Phase 1 · Fundament &amp; Autorisierung aktiv</div>' +
+            '<div class="kicker">Phase 2 · Bestand &amp; Warenverbrauch nativ aktiv</div>' +
             '<h3>Willkommen im zentralen SONA OS, ' + esc(s.user.name) + '</h3>' +
           '</div>' +
           '<div style="display:flex;gap:8px;flex-wrap:wrap;">' +
@@ -572,7 +577,8 @@
     openView: function(viewKey) {
       STATE.activeView = viewKey;
       renderActiveView();
-    }
+    },
+    toast: showToast
   };
 
   document.addEventListener('DOMContentLoaded', init);
