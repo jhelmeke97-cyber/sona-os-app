@@ -1,6 +1,6 @@
 'use strict';
 
-const SONA_OS_SHELL_CACHE = 'sona-os-shell-v19';
+const SONA_OS_SHELL_CACHE = 'sona-os-shell-v20';
 const SONA_OS_SHELL_ASSETS = [
   './',
   './index.html',

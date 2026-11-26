@@ -401,7 +401,8 @@
     const pillarGroups = [
       { id: 'OPERATIONS', label: 'Operations' },
       { id: 'WARENWIRTSCHAFT', label: 'Warenwirtschaft' },
-      { id: 'CONTROLLING', label: 'Controlling' }
+      { id: 'CONTROLLING', label: 'Controlling' },
+      { id: 'PERFORMANCE', label: 'Performance' }
     ];
 
     let navHtml =
@@ -678,7 +679,8 @@
     const pillars = [
       { id: 'OPERATIONS', title: 'Operations' },
       { id: 'WARENWIRTSCHAFT', title: 'Warenwirtschaft' },
-      { id: 'CONTROLLING', title: 'Controlling' }
+      { id: 'CONTROLLING', title: 'Controlling' },
+      { id: 'PERFORMANCE', title: 'Performance' }
     ];
 
     const pillarsHtml = pillars.map(p => {
@@ -1016,7 +1018,7 @@
         '</div>' +
         '<p class="module-desc" style="margin-bottom:14px;">Steuere pro Mitarbeiter und Gmail-Konto die Hauptmodule (inkl. Operations), Standorte, Zugriffsstufe und über <b>Tabs ▾</b> die feingranularen Tab-Freigaben.</p>' +
         '<div class="table-wrap"><table id="rbacTable"><thead><tr>' +
-          '<th>Benutzer</th><th>Rolle</th><th>Einkauf</th><th>Rezepturen</th><th>Controlling</th><th>Bestand</th><th>Operations</th><th>Admin</th><th>Standorte</th><th>Stufe</th><th>Tab-Details</th><th>Aktion</th>' +
+          '<th>Benutzer</th><th>Rolle</th><th>Einkauf</th><th>Rezepturen</th><th>Controlling</th><th>Bestand</th><th>Operations</th><th>Performance</th><th>Admin</th><th>Standorte</th><th>Stufe</th><th>Tab-Details</th><th>Aktion</th>' +
         '</tr></thead><tbody id="rbacBody"><tr><td colspan="12">Lade Rechte-Matrix …</td></tr></tbody></table></div>' +
       '</div>';
 
@@ -1074,6 +1076,7 @@
           '<td class="chk-cell"><input type="checkbox" class="rbac-mod" data-mod="controlling"' + (u.modules.controlling ? ' checked' : '') + '></td>' +
           '<td class="chk-cell"><input type="checkbox" class="rbac-mod" data-mod="bestand"' + (u.modules.bestand ? ' checked' : '') + '></td>' +
           '<td class="chk-cell"><input type="checkbox" class="rbac-mod" data-mod="operations"' + (u.modules.operations !== false ? ' checked' : '') + '></td>' +
+          '<td class="chk-cell"><input type="checkbox" class="rbac-mod" data-mod="performance"' + (u.modules.performance ? ' checked' : '') + '></td>' +
           '<td class="chk-cell"><input type="checkbox" class="rbac-admin"' + (u.adminMatrix ? ' checked' : '') + '></td>' +
           '<td><div class="loc-chks">' +
             allLocations.map(l =>
@@ -1093,7 +1096,7 @@
           '</div></td>' +
         '</tr>' +
         '<tr class="rbac-tabs-row hidden" data-tabs-for="' + idx + '">' +
-          '<td colspan="12">' +
+          '<td colspan="13">' +
             '<div class="rbac-tabs-grid">' +
               renderTabPermissionBox(idx, 'rezeptur', 'Rezepturen – Tab-Freigaben', STATE.tabCatalog.rezeptur || [], tp.rezeptur) +
               renderTabPermissionBox(idx, 'einkauf', 'Einkauf – Tab-Freigaben', STATE.tabCatalog.einkauf || [], tp.einkauf) +
