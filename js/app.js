@@ -419,11 +419,17 @@
   function showMainContentPane() {
     const mainEl = $('osMainContent');
     const hostEl = $('osModuleFrameHost');
-    if (hostEl) hostEl.classList.add('hidden');
+    if (hostEl) {
+      hostEl.classList.add('hidden');
+      Object.keys(STATE.moduleFrames).forEach(k => {
+        if (STATE.moduleFrames[k]) STATE.moduleFrames[k].classList.add('hidden');
+      });
+    }
     if (mainEl) {
       mainEl.classList.remove('hidden');
       mainEl.classList.remove('os-content-fullbleed');
     }
+    window.SonaLoader.hide();
   }
 
   function buildDirectEmbeddedUrl(mod, s) {
@@ -507,6 +513,10 @@
       let launchUrl = buildDirectEmbeddedUrl(mod, s);
       if (!launchUrl) {
         const res = await window.SonaApi.getModuleLaunchUrl(mod.key, s.standortId);
+        if (STATE.activeView !== 'mod_' + mod.key) {
+          window.SonaLoader.hide();
+          return;
+        }
         if (!res || !res.success || !res.launchUrl) {
           showMainContentPane();
           container.innerHTML =
@@ -518,6 +528,11 @@
           return;
         }
         launchUrl = res.launchUrl;
+      }
+
+      if (STATE.activeView !== 'mod_' + mod.key) {
+        window.SonaLoader.hide();
+        return;
       }
 
       const iframe = document.createElement('iframe');
@@ -538,6 +553,10 @@
       hostEl.classList.remove('hidden');
       setTimeout(() => window.SonaLoader.hide(), 8000);
     } catch (err) {
+      if (STATE.activeView !== 'mod_' + mod.key) {
+        window.SonaLoader.hide();
+        return;
+      }
       showMainContentPane();
       container.innerHTML =
         '<div class="card">' +

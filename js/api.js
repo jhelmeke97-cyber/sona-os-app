@@ -206,6 +206,14 @@
     syncRezepturMasters: (standortId) => callPost('os_rezeptur_sync_masters', {
       standortId: standortId
     }),
+    getOpsReklamationMeta: (standortId, monthName) => callPost('os_ops_reklamation_meta', {
+      standortId: standortId,
+      monthName: monthName || ''
+    }),
+    saveOpsReklamation: (standortId, entry) => callPost('os_ops_reklamation_save', {
+      standortId: standortId,
+      entry: entry || {}
+    }),
     getModuleLaunchUrl: (moduleKey, standortId) => callPost('os_module_launch', {
       moduleKey: moduleKey,
       standortId: standortId
