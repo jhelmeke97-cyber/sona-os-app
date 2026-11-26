@@ -315,14 +315,16 @@ select.input-control option {
 .lock-brand img {
   position: relative;
   z-index: 1;
-  width: 92px;
-  height: 92px;
-  border-radius: 0;
+  width: 108px;
+  height: 108px;
+  border-radius: 50%;
   border: none;
-  object-fit: contain;
+  object-fit: cover;
   background: transparent;
-  mix-blend-mode: screen;
-  filter: drop-shadow(0 0 18px rgba(245, 236, 215, 0.22));
+  mix-blend-mode: lighten;
+  filter: contrast(1.22) brightness(1.06);
+  -webkit-mask-image: radial-gradient(circle at 50% 50%, #000000 54%, rgba(0, 0, 0, 0.85) 64%, transparent 76%);
+  mask-image: radial-gradient(circle at 50% 50%, #000000 54%, rgba(0, 0, 0, 0.85) 64%, transparent 76%);
   user-select: none;
 }
 .lock-brand h1 {
