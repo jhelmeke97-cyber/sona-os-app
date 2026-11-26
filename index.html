@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#000000">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-title" content="SONA OS">
+  <title>SONA OS – Warenwirtschaft &amp; Controlling</title>
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" type="image/png" href="./assets/icon-192.png">
+  <link rel="apple-touch-icon" href="./assets/apple-touch-icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./css/sona-os.css">
+</head>
+<body>
+
+  <!-- 1:1 RezepturHub Original SONA Enso Black-Curtain Loader -->
+  <div id="sonaStartupLoader" role="status" aria-live="polite" aria-label="SONA OS wird geladen">
+    <div class="sona-loader-logo-wrap">
+      <div class="sona-loader-glow"></div>
+      <img id="sonaLoaderRingGhost" class="sona-loader-layer" alt="" />
+      <img id="sonaLoaderRingActive" class="sona-loader-layer" alt="" />
+      <img id="sonaLoaderWordmark" class="sona-loader-layer" alt="SONA" />
+    </div>
+    <div class="sona-loader-tagline-wrap">
+      <div class="sona-loader-tagline">TASTE THE PASSION</div>
+      <div class="sona-loader-hairline"></div>
+    </div>
+  </div>
+
+  <!-- Strict PIN App-Lock Screen -->
+  <main id="lockScreen" class="lock-screen">
+    <section class="lock-card" aria-label="SONA OS Anmeldung">
+      <div class="lock-brand">
+        <img src="./assets/sona-logo.jpg" alt="SONA Logo">
+        <div>
+          <div class="kicker">SONA Leipzig · Ökosystem</div>
+          <h1>SONA OS Zugang</h1>
+        </div>
+      </div>
+
+      <div id="lockError" class="lock-error hidden"></div>
+
+      <div class="form-field">
+        <label class="kicker" for="lockUserSelect">Benutzer auswählen</label>
+        <select id="lockUserSelect" class="input-control">
+          <option value="">Lade aktive Benutzer …</option>
+        </select>
+      </div>
+
+      <div class="form-field">
+        <label class="kicker" for="lockLocationSelect">Standort</label>
+        <select id="lockLocationSelect" class="input-control"></select>
+      </div>
+
+      <div class="form-field">
+        <label class="kicker">SONA-PIN</label>
+        <div id="pinDots" class="pin-dots" aria-label="PIN Eingabe"></div>
+      </div>
+
+      <div id="numpadGrid" class="numpad-grid">
+        <button type="button" class="numpad-btn" data-digit="1">1</button>
+        <button type="button" class="numpad-btn" data-digit="2">2</button>
+        <button type="button" class="numpad-btn" data-digit="3">3</button>
+        <button type="button" class="numpad-btn" data-digit="4">4</button>
+        <button type="button" class="numpad-btn" data-digit="5">5</button>
+        <button type="button" class="numpad-btn" data-digit="6">6</button>
+        <button type="button" class="numpad-btn" data-digit="7">7</button>
+        <button type="button" class="numpad-btn" data-digit="8">8</button>
+        <button type="button" class="numpad-btn" data-digit="9">9</button>
+        <button type="button" class="numpad-btn numpad-action" data-action="clear">Leeren</button>
+        <button type="button" class="numpad-btn" data-digit="0">0</button>
+        <button type="button" class="numpad-btn numpad-action" data-action="back">Löschen</button>
+      </div>
+
+      <button type="button" id="btnLoginSubmit" class="btn btn-primary" style="width:100%;height:42px;">Entsperren</button>
+
+      <div class="lock-footer">
+        <span class="kicker">GitHub-Pages PWA</span>
+        <button type="button" id="btnOpenGatewaySettings" class="btn btn-sm">Gateway-URL</button>
+      </div>
+    </section>
+  </main>
+
+  <!-- Authenticated SONA-OS Workspace Shell (populated ONLY after verified login) -->
+  <div id="osAppShell" class="os-shell hidden">
+    <aside class="os-sidebar">
+      <div class="sidebar-brand">
+        <img src="./assets/sona-logo.jpg" alt="SONA Logo">
+        <div>
+          <div class="kicker">SONA Leipzig</div>
+          <div class="sidebar-brand-title">SONA OS</div>
+        </div>
+      </div>
+
+      <nav id="osNavList" class="os-nav-list" aria-label="SONA OS Navigation"></nav>
+
+      <div class="sidebar-footer">
+        <div id="sidebarUserMeta"></div>
+        <button type="button" id="btnLockLogout" class="btn btn-sm" style="width:100%;">Sperren / Abmelden</button>
+      </div>
+    </aside>
+
+    <div class="os-main">
+      <header class="os-topbar">
+        <div class="os-topbar-title">
+          <div class="kicker">SONA OS · Zentrale Steuerung</div>
+          <h2 id="activeViewTitle">SONA OS – Übersicht</h2>
+        </div>
+
+        <div class="os-topbar-actions">
+          <select id="globalLocationSelect" class="input-control os-topbar-select" aria-label="Standort wechseln"></select>
+          <span id="topbarLocationBadge" class="badge"></span>
+          <span id="topbarUserBadge" class="badge"></span>
+          <button type="button" id="btnInstallPwa" class="btn btn-primary btn-sm hidden">App installieren</button>
+        </div>
+      </header>
+
+      <main id="osMainContent" class="os-content"></main>
+    </div>
+
+    <nav id="osMobileNav" class="os-mobile-nav" aria-label="Mobile Navigation"></nav>
+  </div>
+
+  <!-- Gateway URL Configuration Modal -->
+  <div id="gatewayModal" class="modal-backdrop hidden">
+    <div class="modal-card">
+      <div class="card-head">
+        <div>
+          <div class="kicker">Konfiguration</div>
+          <h3>Apps-Script JSON-Gateway</h3>
+        </div>
+        <button type="button" id="btnCloseGatewayModal" class="btn btn-sm">Schließen</button>
+      </div>
+      <div class="form-field">
+        <label class="kicker" for="gatewayUrlInput">Veröffentlichte /exec Web-App-URL</label>
+        <input type="text" id="gatewayUrlInput" class="input-control">
+      </div>
+      <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;">
+        <button type="button" id="btnResetGatewayUrl" class="btn btn-sm">Standard zurücksetzen</button>
+        <button type="button" id="btnSaveGatewayUrl" class="btn btn-primary btn-sm">Speichern</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="./js/config.js"></script>
+  <script src="./js/loader.js"></script>
+  <script src="./js/api.js"></script>
+  <script src="./js/app.js"></script>
+</body>
+</html>
