@@ -1,6 +1,6 @@
 'use strict';
 
-const SONA_OS_SHELL_CACHE = 'sona-os-shell-v5';
+const SONA_OS_SHELL_CACHE = 'sona-os-shell-v6';
 const SONA_OS_SHELL_ASSETS = [
   './',
   './index.html',
@@ -13,6 +13,7 @@ const SONA_OS_SHELL_ASSETS = [
   './js/controlling.js',
   './js/einkauf.js',
   './js/rezeptur.js',
+  './js/operations.js',
   './js/app.js',
   './assets/sona-logo.jpg',
   './assets/icon-192.png',

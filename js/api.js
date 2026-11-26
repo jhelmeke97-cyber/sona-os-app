@@ -1,6 +1,12 @@
 'use strict';
 
 (function() {
+  let unauthorizedHandler = null;
+
+  function setUnauthorizedHandler(fn) {
+    unauthorizedHandler = typeof fn === 'function' ? fn : null;
+  }
+
   function getGatewayUrl() {
     try {
       const saved = localStorage.getItem(window.SONA_OS_DEFAULTS.GATEWAY_STORAGE_KEY);
@@ -70,10 +76,21 @@
     } catch (e) {
       throw new Error('Gateway lieferte kein gültiges JSON (evtl. Google-Anmeldung oder fehlendes @sync-Deployment erforderlich).');
     }
+    if (
+      parsed &&
+      parsed.success === false &&
+      (parsed.code === 'UNAUTHORIZED' || parsed.code === 'SESSION_EXPIRED') &&
+      action !== 'os_login' &&
+      action !== 'os_session_check' &&
+      unauthorizedHandler
+    ) {
+      try { unauthorizedHandler(parsed.error || 'Sitzung abgelaufen.'); } catch (eUnauth) {}
+    }
     return parsed;
   }
 
   window.SonaApi = {
+    setUnauthorizedHandler: setUnauthorizedHandler,
     getGatewayUrl: getGatewayUrl,
     setGatewayUrl: setGatewayUrl,
     getToken: getToken,

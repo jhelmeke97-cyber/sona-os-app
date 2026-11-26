@@ -824,3 +824,37 @@ tr.clickable-row:hover td {
 @media (max-width: 720px) {
   .bv-kpi-grid, .grid-3 { grid-template-columns: 1fr; }
 }
+
+/* ============================================================================
+   3-Pillar Architecture (Warenwirtschaft / Controlling / Operations)
+   ============================================================================ */
+.os-nav-section-label {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(227, 213, 202, 0.55);
+  padding: 12px 10px 4px;
+}
+
+.pillar-section {
+  margin-bottom: 22px;
+}
+
+.pillar-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--os-line);
+}
+
+.pillar-head h3 {
+  margin: 0;
+  font-family: var(--font-serif);
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--os-cream);
+}

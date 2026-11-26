@@ -58,15 +58,19 @@
     }
   }
 
+  function clearAllModuleCaches() {
+    if (window.SonaBestandModule) window.SonaBestandModule.clearCache();
+    if (window.SonaControllingModule) window.SonaControllingModule.clearCache();
+    if (window.SonaEinkaufModule) window.SonaEinkaufModule.clearCache();
+    if (window.SonaRezepturModule) window.SonaRezepturModule.clearCache();
+  }
+
   function lockApp(reasonMsg) {
     window.SonaApi.setToken('');
     STATE.session = null;
     STATE.rbacEntries = [];
     STATE.pinBuffer = '';
-    if (window.SonaBestandModule) window.SonaBestandModule.clearCache();
-    if (window.SonaControllingModule) window.SonaControllingModule.clearCache();
-    if (window.SonaEinkaufModule) window.SonaEinkaufModule.clearCache();
-    if (window.SonaRezepturModule) window.SonaRezepturModule.clearCache();
+    clearAllModuleCaches();
     updatePinDots();
     $('osAppShell').classList.add('hidden');
     $('osNavList').innerHTML = '';
@@ -91,6 +95,11 @@
         throw new Error((res && res.error) || 'Benutzerliste konnte nicht geladen werden.');
       }
       STATE.users = res.users || [];
+      if (locSel && Array.isArray(res.locations) && res.locations.length) {
+        locSel.innerHTML = res.locations.map(l =>
+          '<option value="' + esc(l.id) + '">' + esc(l.name) + ' (' + esc(l.id) + ')</option>'
+        ).join('');
+      }
       if (sel) {
         sel.innerHTML = STATE.users.length
           ? STATE.users.map(u => '<option value="' + esc(u.id) + '">' + esc(u.name) + ' (' + esc(u.role) + ')</option>').join('')
@@ -151,23 +160,36 @@
 
     const mods = s.ecosystemModules || [];
     const navItems = [
-      { key: 'overview', title: 'Übersicht', ebene: 'SONA OS' }
-    ].concat(mods.map(m => ({ key: 'mod_' + m.key, title: m.title, ebene: m.ebene })));
+      { key: 'overview', title: 'Startseite', ebene: 'SONA OS', pillar: 'ROOT' }
+    ].concat(mods.map(m => ({ key: 'mod_' + m.key, title: m.title, ebene: m.ebene, pillar: m.pillar || 'WARENWIRTSCHAFT' })));
 
     if (s.permissions.adminMatrix) {
-      navItems.push({ key: 'rbac', title: 'Rechte-Matrix', ebene: 'Admin' });
+      navItems.push({ key: 'rbac', title: 'Rechte-Matrix', ebene: 'Admin', pillar: 'ADMIN' });
     }
 
     if (!navItems.some(x => x.key === STATE.activeView)) {
       STATE.activeView = 'overview';
     }
 
-    $('osNavList').innerHTML = navItems.map(item =>
-      '<button type="button" class="os-nav-btn' + (STATE.activeView === item.key ? ' active' : '') + '" data-view="' + esc(item.key) + '">' +
-        '<span>' + esc(item.title) + '</span>' +
-        '<span class="os-nav-ebene">' + esc(item.ebene) + '</span>' +
-      '</button>'
-    ).join('');
+    const pillarOrder = [
+      { id: 'ROOT', label: '' },
+      { id: 'WARENWIRTSCHAFT', label: '01 · Warenwirtschaft' },
+      { id: 'CONTROLLING', label: '02 · Controlling' },
+      { id: 'OPERATIONS', label: '03 · Operations' },
+      { id: 'ADMIN', label: 'Administration' }
+    ];
+
+    $('osNavList').innerHTML = pillarOrder.map(group => {
+      const items = navItems.filter(it => it.pillar === group.id);
+      if (!items.length) return '';
+      const heading = group.label ? '<div class="os-nav-section-label">' + esc(group.label) + '</div>' : '';
+      return heading + items.map(item =>
+        '<button type="button" class="os-nav-btn' + (STATE.activeView === item.key ? ' active' : '') + '" data-view="' + esc(item.key) + '">' +
+          '<span>' + esc(item.title) + '</span>' +
+          '<span class="os-nav-ebene">' + esc(item.ebene) + '</span>' +
+        '</button>'
+      ).join('');
+    }).join('');
 
     $('osMobileNav').innerHTML = navItems.map(item =>
       '<button type="button" class="' + (STATE.activeView === item.key ? 'active' : '') + '" data-view="' + esc(item.key) + '">' +
@@ -224,6 +246,8 @@
           window.SonaEinkaufModule.mount(s, mod);
         } else if (mod.key === 'rezeptur' && window.SonaRezepturModule) {
           window.SonaRezepturModule.mount(s, mod);
+        } else if (mod.key === 'operations' && window.SonaOperationsModule) {
+          window.SonaOperationsModule.mount(s, mod);
         } else {
           renderModuleBridgeView(mod);
         }
@@ -240,42 +264,58 @@
     const mods = s.ecosystemModules || [];
     const container = $('osMainContent');
 
-    const modCards = mods.length
-      ? mods.map(m =>
-          '<div class="module-card">' +
-            '<div>' +
-              '<div class="kicker">' + esc(m.ebene) + '</div>' +
-              '<h3>' + esc(m.title) + '</h3>' +
-              '<p class="module-desc">' + esc(m.subtitle) + '</p>' +
-            '</div>' +
-            '<div>' +
-              '<div style="margin-bottom:10px;"><span class="badge ' + (m.nativeReady ? 'badge-ok' : 'badge-info') + '">' + esc(m.phase) + '</span></div>' +
-              '<div style="display:flex;gap:8px;flex-wrap:wrap;">' +
-                '<button type="button" class="btn btn-primary btn-sm" onclick="window.SonaApp.openView(\'mod_' + esc(m.key) + '\')">' + (m.nativeReady ? 'Nativ öffnen' : 'Modul-Bereich') + '</button>' +
-                ((!m.adminOnlyLegacy || s.permissions.adminMatrix)
-                  ? '<a class="btn btn-sm" href="' + esc(m.legacyUrl) + '" target="_blank" rel="noopener">' + (m.adminOnlyLegacy ? 'Admin-Vollansicht ↗' : 'Live-Ebene ↗') + '</a>'
-                  : '') +
-              '</div>' +
-            '</div>' +
-          '</div>'
-        ).join('')
-      : '<div class="card"><p>Für deinen Benutzer sind aktuell noch keine Ebenen freigegeben.</p></div>';
+    const renderCard = m =>
+      '<div class="module-card">' +
+        '<div>' +
+          '<div class="kicker">' + esc(m.ebene) + '</div>' +
+          '<h3>' + esc(m.title) + '</h3>' +
+          '<p class="module-desc">' + esc(m.subtitle) + '</p>' +
+        '</div>' +
+        '<div>' +
+          '<div style="margin-bottom:10px;"><span class="badge ' + (m.nativeReady ? 'badge-ok' : 'badge-info') + '">' + esc(m.phase) + '</span></div>' +
+          '<div style="display:flex;gap:8px;flex-wrap:wrap;">' +
+            '<button type="button" class="btn btn-primary btn-sm" onclick="window.SonaApp.openView(\'mod_' + esc(m.key) + '\')">' + (m.nativeReady ? 'Öffnen' : 'Modul-Bereich') + '</button>' +
+            (m.legacyUrl && (!m.adminOnlyLegacy || s.permissions.adminMatrix)
+              ? '<a class="btn btn-sm" href="' + esc(m.legacyUrl) + '" target="_blank" rel="noopener">' + (m.adminOnlyLegacy ? 'Admin-Vollansicht ↗' : 'Live-Ebene ↗') + '</a>'
+              : '') +
+          '</div>' +
+        '</div>' +
+      '</div>';
+
+    const pillars = [
+      { id: 'WARENWIRTSCHAFT', kicker: 'Oberebene 01 · Vernetzte Warenwirtschaft', title: 'Warenwirtschaft', desc: 'Einkauf, Bestand & Warenverbrauch sowie Rezeptur-Manager – voll synchronisiert.' },
+      { id: 'CONTROLLING', kicker: 'Oberebene 02 · Steuerung & Analyse', title: 'Controlling', desc: 'Periodenvergleich, Deckungsbeiträge, Renner-Penner & Preis-Prognose.' },
+      { id: 'OPERATIONS', kicker: 'Oberebene 03 · Operativer Tagesbetrieb', title: 'Operations', desc: 'Schwund & Bruch (aktiv vernetzt) · Reklamationen, Bewertungen & Checklisten vorbereitet.' }
+    ];
+
+    const pillarsHtml = pillars.map(p => {
+      const pMods = mods.filter(m => (m.pillar || 'WARENWIRTSCHAFT') === p.id);
+      if (!pMods.length) return '';
+      const gridCls = pMods.length >= 3 ? 'grid-3' : (pMods.length === 2 ? 'grid-2' : 'grid-2');
+      return '<section class="pillar-section">' +
+        '<div class="pillar-head">' +
+          '<div><div class="kicker">' + esc(p.kicker) + '</div><h3>' + esc(p.title) + '</h3></div>' +
+          '<span class="kicker">' + esc(p.desc) + '</span>' +
+        '</div>' +
+        '<div class="' + gridCls + '">' + pMods.map(renderCard).join('') + '</div>' +
+      '</section>';
+    }).join('');
 
     container.innerHTML =
       '<div class="card">' +
         '<div class="card-head">' +
           '<div>' +
-            '<div class="kicker">SONA OS · Alle 4 Ebenen nativ aktiv (Single Sign-On)</div>' +
+            '<div class="kicker">SONA OS · 3-Säulen-Architektur (Multi-Standort bereit)</div>' +
             '<h3>Willkommen im zentralen SONA OS, ' + esc(s.user.name) + '</h3>' +
           '</div>' +
           '<div style="display:flex;gap:8px;flex-wrap:wrap;">' +
-            '<span class="badge badge-ok">PIN-App-Lock &amp; HMAC-Session aktiv</span>' +
+            '<span class="badge badge-ok">Single Sign-On aktiv</span>' +
             '<span class="badge">Standort: ' + esc(s.standortName) + ' (' + esc(s.standortId) + ')</span>' +
           '</div>' +
         '</div>' +
-        '<p class="module-desc">Dieses Fundament läuft eigenständig auf GitHub Pages (PWA) ohne Google-Frames. Jeder API-Aufruf wird serverseitig in Apps Script gegen dein signiertes Session-Token, deine Standortfreigabe und die zentrale Rechte-Matrix geprüft. Die vollständige native JSON-Migration der Ebenen erfolgt schrittweise in Phase 2–5.</p>' +
+        '<p class="module-desc">Alle Ebenen sind sauber in <b>Warenwirtschaft</b>, <b>Controlling</b> und <b>Operations</b> gegliedert und arbeiten auf derselben synchronisierten Google-Sheets-Datenbasis. Standortwechsel und Rechte greifen sofort über alle Module hinweg.</p>' +
       '</div>' +
-      '<div class="grid-4" style="margin-bottom:18px;">' + modCards + '</div>' +
+      (pillarsHtml || '<div class="card"><p>Für deinen Benutzer sind aktuell noch keine Ebenen freigegeben.</p></div>') +
       '<div class="grid-2">' +
         '<div class="card">' +
           '<div class="card-head"><div><div class="kicker">Sicherheit</div><h3>Session &amp; Mandantenschutz</h3></div></div>' +
@@ -360,6 +400,9 @@
         return;
       }
       STATE.rbacEntries = res.entries || [];
+      const allLocations = (Array.isArray(res.locations) && res.locations.length)
+        ? res.locations
+        : window.SONA_OS_DEFAULTS.LOCATIONS;
       tbody.innerHTML = STATE.rbacEntries.map((u, idx) => {
         const locs = u.allowedLocations || [];
         return '<tr data-idx="' + idx + '" data-uid="' + esc(u.userId) + '">' +
@@ -371,8 +414,9 @@
           '<td class="chk-cell"><input type="checkbox" class="rbac-mod" data-mod="bestand"' + (u.modules.bestand ? ' checked' : '') + '></td>' +
           '<td class="chk-cell"><input type="checkbox" class="rbac-admin"' + (u.adminMatrix ? ' checked' : '') + '></td>' +
           '<td><div class="loc-chks">' +
-            '<label><input type="checkbox" class="rbac-loc" value="001"' + (locs.indexOf('001') !== -1 ? ' checked' : '') + '> 001</label>' +
-            '<label><input type="checkbox" class="rbac-loc" value="002"' + (locs.indexOf('002') !== -1 ? ' checked' : '') + '> 002</label>' +
+            allLocations.map(l =>
+              '<label title="' + esc(l.name) + '"><input type="checkbox" class="rbac-loc" value="' + esc(l.id) + '"' + (locs.indexOf(l.id) !== -1 ? ' checked' : '') + '> ' + esc(l.id) + '</label>'
+            ).join('') +
           '</div></td>' +
           '<td><select class="input-control rbac-level" style="height:30px;min-width:92px;">' +
             ['READ', 'WRITE', 'ADMIN'].map(lvl => '<option value="' + lvl + '"' + (u.accessLevel === lvl ? ' selected' : '') + '>' + lvl + '</option>').join('') +
@@ -510,6 +554,7 @@
         }
         window.SonaApi.setToken(res.token);
         STATE.session = res;
+        clearAllModuleCaches();
         renderAuthenticatedShell();
         showToast('Standort aktiv: ' + res.standortName);
       } catch (err) {
@@ -563,6 +608,12 @@
     window.SonaLoader.show(0);
     updatePinDots();
     bindGlobalUiEvents();
+
+    window.SonaApi.setUnauthorizedHandler(msg => {
+      lockApp(msg || 'Sitzung abgelaufen – bitte erneut mit PIN entsperren.');
+    });
+    window.addEventListener('offline', () => showToast('Offline – Verbindung zum SONA Gateway unterbrochen.'));
+    window.addEventListener('online', () => showToast('Verbindung wiederhergestellt.'));
 
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('./sw.js').catch(() => {});
