@@ -666,6 +666,8 @@
     const bruchUrl = (opsMod && opsMod.bruchUrl) ? buildQuickOpsUrl(opsMod.bruchUrl, s) : '';
     const canSchwund = !!(schwundUrl && (opTabs === 'ALL' || (Array.isArray(opTabs) && opTabs.indexOf('schwund_eingabe') !== -1)));
     const canBruch = !!(bruchUrl && (opTabs === 'ALL' || (Array.isArray(opTabs) && opTabs.indexOf('bruch_eingabe') !== -1)));
+    const canPutzplan = !!(opsMod && (opTabs === 'ALL' || (Array.isArray(opTabs) && opTabs.indexOf('putzplan') !== -1)));
+    const canTodo = !!(opsMod && (opTabs === 'ALL' || (Array.isArray(opTabs) && opTabs.indexOf('todo') !== -1)));
 
     const renderTile = m =>
       '<button type="button" class="home-tile" onclick="window.SonaApp.openView(\'mod_' + esc(m.key) + '\')">' +
@@ -695,7 +697,9 @@
 
     const quickOpsHtml =
       (canSchwund ? '<button type="button" class="btn btn-sm home-quick-ops-btn" data-quick-url="' + esc(schwundUrl) + '" title="Schwund im neuen Tab erfassen">+ Schwund</button>' : '') +
-      (canBruch ? '<button type="button" class="btn btn-sm home-quick-ops-btn" data-quick-url="' + esc(bruchUrl) + '" title="Bruch im neuen Tab erfassen">+ Bruch</button>' : '');
+      (canBruch ? '<button type="button" class="btn btn-sm home-quick-ops-btn" data-quick-url="' + esc(bruchUrl) + '" title="Bruch im neuen Tab erfassen">+ Bruch</button>' : '') +
+      (canPutzplan ? '<button type="button" class="btn btn-sm home-quick-view-btn" data-quick-view="ops_putzplan" title="Putzplan öffnen">Putzplan</button>' : '') +
+      (canTodo ? '<button type="button" class="btn btn-sm home-quick-view-btn" data-quick-view="ops_todo" title="To-Do-Checkliste öffnen">Checkliste</button>' : '');
 
     container.innerHTML =
       '<div class="os-home-greeting">' +
@@ -714,6 +718,13 @@
       btn.addEventListener('click', () => {
         if (btn.dataset.quickUrl) {
           window.open(btn.dataset.quickUrl, '_blank', 'noopener,noreferrer');
+        }
+      });
+    });
+    container.querySelectorAll('.home-quick-view-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        if (btn.dataset.quickView) {
+          openView(btn.dataset.quickView);
         }
       });
     });
